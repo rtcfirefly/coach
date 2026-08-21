@@ -99,28 +99,36 @@
     // emits CUMULATIVE finals at successive indices — "I", "I did", "I did 20" —
     // so taking each new index verbatim replays the whole utterance and, in a
     // call, fires one LLM turn per word. Others emit only the new fragment.
-    // Return the part of `next` that is not already in `acc`, which is correct
-    // under either convention.
-    function tail(acc, next) {
-      var a = acc.trim(), n = next.trim();
-      if (!a) return n;
+    //
+    // Compare each final against the PREVIOUS final, not against the whole
+    // session transcript: in a continuous session e.results keeps growing across
+    // utterances, so a session-wide comparison fails to spot cumulative growth
+    // once a second utterance begins.
+    var prevFinal = '';
+    function delta(prev, next) {
+      var p = prev.trim(), n = next.trim();
       if (!n) return '';
-      var la = a.toLowerCase(), ln = n.toLowerCase();
-      if (ln.indexOf(la) === 0) return n.slice(a.length).trim();   // cumulative growth
-      if (la.indexOf(ln) === 0) return '';                          // repeat of what we have
-      if (la.slice(-ln.length) === ln) return '';                   // trailing repeat
-      return n;                                                     // genuinely new fragment
+      if (!p) return n;
+      var lp = p.toLowerCase(), ln = n.toLowerCase();
+      if (ln === lp) return '';                                    // repeated verbatim
+      if (ln.indexOf(lp) === 0) return n.slice(p.length).trim();   // cumulative growth
+      return n;                                                    // a new fragment
     }
 
-    rec.onstart = function () { finalText = ''; emitted = 0; if (cb.onStart) cb.onStart(); };
+    rec.onstart = function () {
+      finalText = ''; emitted = 0; prevFinal = '';
+      if (cb.onStart) cb.onStart();
+    };
     rec.onresult = function (e) {
       var interim = '', fresh = '';
       for (var i = 0; i < e.results.length; i++) {
         var r = e.results[i];
         if (r.isFinal) {
           if (i >= emitted) {
-            var add = tail(finalText + fresh, r[0].transcript);
+            var t = r[0].transcript;
+            var add = delta(prevFinal, t);
             if (add) fresh += (fresh ? ' ' : '') + add;
+            prevFinal = t;
             emitted = i + 1;
           }
         } else {

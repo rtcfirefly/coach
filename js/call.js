@@ -13,6 +13,8 @@
   var coachWords = {}, coachWordCount = 0;
   var rec = null, restartTimer = null, lastFinal = '';
   var micGen = 0;          // supersedes stale recognizers so their callbacks go inert
+  var utterBuf = '', utterTimer = null;
+  var UTTER_GAP_MS = 800;  // silence that ends an utterance when VAD cannot tell us
   var lastSpeakEnd = 0;
   var timerInt = null, startTs = 0;
   var interrupted = false, queuedUtterance = null;
@@ -171,22 +173,23 @@
         U().setUserCaption(t);
         if (pending > 0 && isMeaningful(t) && !isEcho(t)) bargeIn(); // interrupt the coach
       },
-      // continuous: each finalised segment is a turn, dispatched as it lands
-      // rather than waiting for the recognizer to end.
+      // In continuous mode a single sentence arrives as many small finals — on
+      // Android, one per word. Dispatching each would fire an LLM turn per word,
+      // so they are buffered and flushed once speech actually stops.
       onFinal: function (t) {
         if (myMic !== micGen) return;
         lastFinal = '';
-        handleFinal((t || '').trim());
+        pushFragment((t || '').trim());
       },
       onError: function (code) { if (myMic === micGen) onRecError(code); },
       onEnd: function () {
         if (myMic !== micGen) return;      // superseded — stay inert
         rec = null;
-        // No text handling here: onFinal already dispatched every finalised
-        // segment, and speech.js's onEnd argument is the running total for the
-        // whole session — acting on it would replay the entire call. Some
-        // engines (notably Android Chrome) still end on silence despite
-        // continuous, so the only job left is getting the mic back up.
+        flushUtterance();
+        // Flush whatever is buffered — the recogniser ending IS an endpoint, so
+        // waiting out the gap timer would only add latency. Deliberately not
+        // using speech.js's onEnd argument: that is the running total for the
+        // whole session, and acting on it would replay the entire call.
         if (active && !muted && !document.hidden) restartTimer = setTimeout(startMic, 300);
       }
     }, { continuous: true });
@@ -194,6 +197,25 @@
     if (!r) return;
     rec = r;
     try { r.start(); } catch (e) { /* already running */ }
+  }
+
+  /* Accumulate recogniser fragments; flush as one utterance. */
+  function pushFragment(t) {
+    if (!t) return;
+    utterBuf += (utterBuf ? ' ' : '') + t;
+    U().setUserCaption(utterBuf);
+    if (utterTimer) clearTimeout(utterTimer);
+    utterTimer = setTimeout(flushUtterance, UTTER_GAP_MS);
+  }
+  function flushUtterance() {
+    if (utterTimer) { clearTimeout(utterTimer); utterTimer = null; }
+    var t = utterBuf.trim();
+    utterBuf = '';
+    if (t) handleFinal(t);
+  }
+  function dropUtterance() {
+    if (utterTimer) { clearTimeout(utterTimer); utterTimer = null; }
+    utterBuf = '';
   }
 
   function onRecError(code) {
@@ -279,6 +301,11 @@
         if (!active || muted) return;
         // Only meaningful as an interruption while the coach holds the floor.
         if (pending > 0) bargeIn();
+      },
+      onSpeechEnd: function () {
+        // A real acoustic endpoint beats waiting out UTTER_GAP_MS, so flush
+        // early when the VAD is available and something is pending.
+        if (active && !muted && utterBuf) flushUtterance();
       }
     }).then(function (ok) { vadOn = !!ok; });
   }
@@ -316,6 +343,7 @@
     if (muted) {
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
       micGen++;   // discard anything this recognizer still reports
+      dropUtterance();
       if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     } else {
       startMic();
@@ -329,6 +357,7 @@
     if (turnAbort) { try { turnAbort.abort(); } catch (e) {} turnAbort = null; }
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
     micGen++;
+    dropUtterance();
     if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     Sp().cancelSpeech();
     stopVad();
