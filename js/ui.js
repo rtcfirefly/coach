@@ -227,6 +227,17 @@
     el.callMute.addEventListener('click', function () { if (App.Call) App.Call.toggleMute(); });
     el.callEnd.addEventListener('click', function () { if (App.Call) App.Call.end(); });
 
+    // Escape closes the topmost open sheet.
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open = openModals();
+      if (!open.length) return;
+      var top = open[open.length - 1];
+      if (top === el.videoModal) closeVideo();
+      else if (top === el.pickerModal) closePicker();
+      else closeSheet();
+    });
+
     // timer controls
     el.timerToggle.addEventListener('click', toggleTimer);
     el.timerStop.addEventListener('click', stopTimer);
@@ -281,6 +292,15 @@
 
   // ---------------------------------------------------------------- chat render
   function scrollChatToBottom() { if (el.chat) el.chat.scrollTop = el.chat.scrollHeight; }
+  // Within this many px of the bottom counts as "following along".
+  var FOLLOW_SLACK = 60;
+  function isAtBottom() {
+    if (!el.chat) return true;
+    return (el.chat.scrollHeight - el.chat.scrollTop - el.chat.clientHeight) <= FOLLOW_SLACK;
+  }
+  // Auto-scroll only while the user is at the bottom. Scrolling up to re-read
+  // an earlier set should not be yanked back on the next streamed token.
+  function followChat() { if (isAtBottom()) scrollChatToBottom(); }
 
   function addUserMessage(text, ordinal) {
     var row = make('div', 'msg user');
@@ -342,16 +362,21 @@
 
   function appendAssistantDelta(text) {
     hideTyping();
+    // aria-busy suppresses per-token announcements; finishAssistant clears it so
+    // the completed message is announced once.
+    if (el.chat) el.chat.setAttribute('aria-busy', 'true');
     if (!currentAssistantEl) {
       var row = make('div', 'msg assistant');
       currentAssistantEl = make('div', 'bubble');
       row.appendChild(currentAssistantEl);
       el.chat.appendChild(row);
     }
+    var stick = isAtBottom();
     currentAssistantEl.textContent += text;
-    scrollChatToBottom();
+    if (stick) scrollChatToBottom();
   }
   function finishAssistant() {
+    if (el.chat) el.chat.setAttribute('aria-busy', 'false');
     if (currentAssistantEl) {
       if (!currentAssistantEl.textContent) {
         var row = currentAssistantEl.parentNode;
@@ -809,8 +834,7 @@
     pickerRoutineId = routine.id;
     el.pickerInput.value = '';
     renderPickerSuggestions();
-    el.pickerModal.hidden = false;
-    document.body.classList.add('modal-open');
+    openModal(el.pickerModal, el.pickerInput);
   }
   function renderPickerSuggestions() {
     var routine = Store.getRoutines().filter(function (r) { return r.id === pickerRoutineId; })[0];
@@ -838,7 +862,29 @@
     addPicked(v);
     el.pickerInput.value = '';
   }
-  function closePicker() { el.pickerModal.hidden = true; document.body.classList.remove('modal-open'); }
+  function closePicker() { closeModal(el.pickerModal); }
+
+  /* Shared modal behaviour. Each of the three sheets previously just toggled
+     [hidden]: focus stayed behind them, Escape did nothing, and screen readers
+     were never told the background was inert. */
+  var modalReturnFocus = null;
+  function openModal(node, focusTarget) {
+    modalReturnFocus = document.activeElement;
+    node.hidden = false;
+    node.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+    var t = focusTarget || node.querySelector('input, button, [tabindex]');
+    if (t) { try { t.focus(); } catch (e) {} }
+  }
+  function closeModal(node) {
+    node.hidden = true;
+    node.removeAttribute('aria-modal');
+    document.body.classList.remove('modal-open');
+    if (modalReturnFocus) { try { modalReturnFocus.focus(); } catch (e) {} modalReturnFocus = null; }
+  }
+  function openModals() {
+    return [el.pickerModal, el.sheetModal, el.videoModal].filter(function (n) { return n && !n.hidden; });
+  }
 
   // move / copy / remove action sheet
   function openExerciseSheet(routine, name) {
@@ -880,10 +926,9 @@
       closeSheet(); refreshSessions();
     });
 
-    el.sheetModal.hidden = false;
-    document.body.classList.add('modal-open');
+    openModal(el.sheetModal);
   }
-  function closeSheet() { el.sheetModal.hidden = true; document.body.classList.remove('modal-open'); }
+  function closeSheet() { closeModal(el.sheetModal); }
   function setSuggestBusy(b) {
     el.suggestSessionsBtn.disabled = b;
     el.suggestSessionsBtn.textContent = b ? 'Building…' : '✨ Build sessions from my history';
@@ -1112,8 +1157,7 @@
     el.videoTitle.textContent = name;
     el.videoUrlInput.value = '';
     renderVideoBody();
-    el.videoModal.hidden = false;
-    document.body.classList.add('modal-open');
+    openModal(el.videoModal, el.videoClose);
   }
   function renderVideoBody() {
     var id = App.Videos.idFor(currentVideoName);
@@ -1139,8 +1183,7 @@
   }
   function closeVideo() {
     el.videoFrame.src = '';            // stop playback
-    el.videoModal.hidden = true;
-    document.body.classList.remove('modal-open');
+    closeModal(el.videoModal);
   }
 
   // ---------------------------------------------------------------- backup

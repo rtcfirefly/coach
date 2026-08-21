@@ -168,14 +168,33 @@
     // --- workout sessions / routines (templates of exercise names) ---
     getRoutines: function () { return readJSON(K.routines, []) || []; },
     setRoutines: function (arr) { writeJSON(K.routines, arr || []); },
+    /* Names are the addressing scheme — mergeRoutine and the coach's
+       update_session tool both resolve by name and take the first match — so two
+       routines sharing one meant edits silently landed on whichever came first.
+       Disambiguate on the way in. */
+    uniqueRoutineName: function (name, exceptId) {
+      var arr = this.getRoutines();
+      var base = (name || '').trim() || ('Session ' + (arr.length + 1));
+      var taken = {};
+      arr.forEach(function (r) { if (r.id !== exceptId) taken[lc(r.name)] = true; });
+      if (!taken[lc(base)]) return base;
+      for (var n = 2; n < 200; n++) {
+        var cand = base + ' ' + n;
+        if (!taken[lc(cand)]) return cand;
+      }
+      return base + ' ' + uid();
+    },
     addRoutine: function (name) {
       var arr = this.getRoutines();
-      var r = { id: uid(), name: (name || '').trim() || ('Session ' + (arr.length + 1)), exercises: [] };
+      var r = { id: uid(), name: this.uniqueRoutineName(name), exercises: [] };
       arr.push(r); this.setRoutines(arr); return r;
     },
     renameRoutine: function (id, name) {
+      var wanted = (name || '').trim();
+      if (!wanted) return;
+      var unique = this.uniqueRoutineName(wanted, id);
       var arr = this.getRoutines();
-      arr.forEach(function (r) { if (r.id === id) r.name = (name || '').trim() || r.name; });
+      arr.forEach(function (r) { if (r.id === id) r.name = unique; });
       this.setRoutines(arr);
     },
     deleteRoutine: function (id) {

@@ -31,6 +31,33 @@
   // Optional shipped name->videoId map (empty by default; users pin their own).
   var DICT = {};
 
+  /* The index is derived from stored workouts and routines, so it only changes
+     when those do. It was previously rebuilt per call — and detect() calls it
+     once while separately re-reading the same two keys, i.e. four full parses of
+     the workout list for every assistant message rendered. */
+  var idxCache = null, loggedCache = null, cacheStamp = '';
+  function storeStamp() {
+    try {
+      return String((localStorage.getItem('fit.workouts') || '').length) + ':' +
+             String((localStorage.getItem('fit.routines') || '').length);
+    } catch (e) { return ''; }
+  }
+  function ensureCache() {
+    var st = storeStamp();
+    if (idxCache && st === cacheStamp) return;
+    cacheStamp = st;
+    idxCache = buildNameIndex();
+    loggedCache = {};
+    try {
+      (Store.getWorkouts() || []).forEach(function (w) {
+        (w.exercises || []).forEach(function (ex) { if (ex.name) loggedCache[normalize(ex.name)] = true; });
+      });
+      (Store.getRoutines() || []).forEach(function (r) {
+        (r.exercises || []).forEach(function (n) { if (n) loggedCache[normalize(n)] = true; });
+      });
+    } catch (e) {}
+  }
+
   function buildNameIndex() {
     var names = COMMON_NAMES.slice();
     try {
@@ -54,16 +81,9 @@
   function detect(text) {
     if (!text) return [];
     var nt = ' ' + normalize(text) + ' ';
-    var logged = {};
-    try {
-      (Store.getWorkouts() || []).forEach(function (w) {
-        (w.exercises || []).forEach(function (ex) { if (ex.name) logged[normalize(ex.name)] = true; });
-      });
-      (Store.getRoutines() || []).forEach(function (r) {
-        (r.exercises || []).forEach(function (n) { if (n) logged[normalize(n)] = true; });
-      });
-    } catch (e) {}
-    var names = buildNameIndex();
+    ensureCache();
+    var logged = loggedCache;
+    var names = idxCache;
     var accepted = [], acceptedNorm = [];
     names.forEach(function (name) {
       var c = normalize(name);
@@ -112,6 +132,7 @@
     idFor: idFor,
     setForName: setForName,
     parseId: parseId,
+    invalidate: function () { idxCache = null; cacheStamp = ''; },
     searchUrl: searchUrl,
     embedUrl: embedUrl
   };
