@@ -343,6 +343,35 @@
         })().then(function () { return { ort: ort, asset: asset }; });
       });
     }).then(function (ctx) {
+      // "Failed to fetch dynamically imported module" says nothing about WHY —
+      // a 404, a wrong MIME type and a CSP block are indistinguishable. Probe
+      // the entry module and its imports first so the failure names itself.
+      npStatus('checking modules are served…');
+      var probes = [
+        './vendor/piper-plus/index.js',
+        './vendor/g2p/index.js',
+        './vendor/piper-plus/phonemizer/js-g2p-adapter.js'
+      ];
+      return Promise.all(probes.map(function (p) {
+        return fetch(p, { method: 'GET' }).then(function (r) {
+          return { p: p, status: r.status, type: r.headers.get('content-type') || '?' };
+        }).catch(function (e) { return { p: p, status: 'ERR', type: String(e.message) }; });
+      })).then(function (rs) {
+        var bad = rs.filter(function (r) { return r.status !== 200; });
+        if (bad.length) {
+          throw new Error('module not served: ' + bad.map(function (b) {
+            return b.p.replace('./vendor/', '') + ' → ' + b.status;
+          }).join(', '));
+        }
+        var wrongMime = rs.filter(function (r) { return !/javascript|ecmascript/i.test(r.type); });
+        if (wrongMime.length) {
+          throw new Error('wrong MIME for ES module: ' + wrongMime.map(function (b) {
+            return b.p.replace('./vendor/', '') + ' → ' + b.type;
+          }).join(', '));
+        }
+        return ctx;
+      });
+    }).then(function (ctx) {
       npStatus('initialising Piper…');
       return import('./vendor/piper-plus/index.js').then(function (m) {
         var modelUrl = ctx.asset.files.filter(function (f) { return f.path.endsWith('.onnx'); })[0].url;
