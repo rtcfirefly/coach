@@ -12,6 +12,15 @@
   var $ = function (id) { return document.getElementById(id); };
   var results = [];
 
+  // Build an element with textContent, never innerHTML — voice names and model
+  // paths are third-party strings and this page renders plenty of them.
+  function make(tag, className, text) {
+    var n = document.createElement(tag);
+    if (className) n.className = className;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
   function record(row) {
     results.push(row);
     $('results').textContent = toMarkdown();
