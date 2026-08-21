@@ -14,7 +14,7 @@
      WebAssembly.instantiate. Every byte that executes as JS is same-origin,
      vendored under lab/vendor/ with a committed hash. -->
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'" />
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; worker-src 'self' blob:; child-src 'self' blob:; connect-src 'self' https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Speech Lab — Fitness Coach</title>
 <link rel="stylesheet" href="lab.css?v=2" />
@@ -107,6 +107,19 @@
 </section>
 
 <section class="card">
+  <h2>2b · Neural voice (Piper) <span class="tag warn">~77 MB download</span></h2>
+  <p class="hint">Downloads ONNX Runtime and a Piper voice, then synthesises the same coach line so
+    you can A/B it against the system voices above. Both are SHA-256 verified against
+    <code>registry.json</code> before use and cached, so this is a one-time cost.</p>
+  <div class="row">
+    <button id="np-load" class="primary">Load engine + voice</button>
+    <button id="np-speak" disabled>Speak</button>
+    <button id="np-stop" disabled>Stop</button>
+  </div>
+  <div id="np-stats" class="stats">not loaded</div>
+</section>
+
+<section class="card">
   <h2>3 · Voice activity detection <span class="tag free">no download</span></h2>
   <p class="hint">The module from <code>js/vad.js</code>. Watch the noise floor adapt, then check
     it still triggers on speech with music and plates in the background.</p>
@@ -139,7 +152,7 @@
 </section>
 
 <script src="../js/vad.js?v=18"></script>
-<script src="engines.js?v=2"></script>
-<script src="lab.js?v=5"></script>
+<script src="engines.js?v=3"></script>
+<script src="lab.js?v=6"></script>
 </body>
 </html>

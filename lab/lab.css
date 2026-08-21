@@ -45,3 +45,4 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:12px}
   display:flex;align-items:center;gap:6px}
 .shortlist .chip button{background:none;border:0;color:var(--mut);padding:0 2px;min-height:0;cursor:pointer}
 .voice-now{color:var(--ac);font-weight:600}
+.tag.warn{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}

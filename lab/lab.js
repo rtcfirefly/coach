@@ -276,6 +276,120 @@
     })();
   }
 
+  // ------------------------------------------------- 2b. neural voice (Piper)
+  var piper = null, piperCtx = null, piperSrc = null;
+
+  function npStatus(t) { $('np-stats').textContent = t; }
+
+  /* ONNX Runtime is an ES module we vendored; piper-plus expects it at
+     globalThis.ort. The .wasm binary is large, consent-gated and hash-verified,
+     and handed to ORT as a buffer so it never fetches its own. */
+  function loadOrt(reg) {
+    if (window.ort) return Promise.resolve(window.ort);
+    var prof = reg.profiles['ort-wasm-only'];
+    var wasm = prof.files.filter(function (f) { return f.path.endsWith('.wasm'); })[0];
+    npStatus('fetching ONNX Runtime (' + (wasm.bytes / 1e6).toFixed(1) + ' MB)…');
+    return cacheGet(wasm.url).then(function (hit) {
+      if (hit) {
+        return crypto.subtle.digest('SHA-256', hit).then(function (d) {
+          if (hex(d) !== wasm.sha256) throw new Error('cached ORT wasm failed verification');
+          npStatus('ORT wasm ✓ from cache');
+          return hit;
+        });
+      }
+      return fetchVerified(wasm, function (p) {
+        npStatus('ONNX Runtime ' + Math.round(p * 100) + '%');
+      }).then(function (buf) { return cachePut(wasm.url, buf).then(function () { return buf; }); });
+    }).then(function (buf) {
+      npStatus('starting ONNX Runtime…');
+      return import('./vendor/ort.wasm.min.mjs').then(function (mod) {
+        var ort = mod.default || mod;
+        ort.env.wasm.wasmBinary = buf;      // never let it fetch its own
+        ort.env.wasm.numThreads = 1;        // no cross-origin isolation here
+        ort.env.wasm.wasmPaths = new URL('./vendor/', location.href).href;
+        window.ort = ort;
+        return ort;
+      });
+    });
+  }
+
+  function loadPiper() {
+    $('np-load').disabled = true;
+    return registry().then(function (jsreg) {
+      return loadOrt(jsreg);
+    }).then(function (ort) {
+      // Verify the pinned voice before piper-plus is told to load it. See the
+      // note below about what this does and does not guarantee.
+      return fetch('registry.json').then(function (r) { return r.json(); }).then(function (mreg) {
+        var asset = mreg.assets['piper-amy-medium'];
+        var i = 0;
+        return (function next() {
+          if (i >= asset.files.length) return asset;
+          var f = asset.files[i++];
+          return cacheGet(f.url).then(function (hit) {
+            if (hit) return crypto.subtle.digest('SHA-256', hit).then(function (d) {
+              if (hex(d) !== f.sha256) throw new Error('cached ' + f.path + ' failed verification');
+              npStatus(f.path + ' ✓ cached');
+            });
+            npStatus('fetching ' + f.path + '…');
+            return fetchVerified(f, function (p) {
+              npStatus(f.path + ' ' + Math.round(p * 100) + '%');
+            }).then(function (b) { return cachePut(f.url, b); });
+          }).then(next);
+        })().then(function () { return { ort: ort, asset: asset }; });
+      });
+    }).then(function (ctx) {
+      npStatus('initialising Piper…');
+      return import('./vendor/piper-plus/index.js').then(function (m) {
+        var modelUrl = ctx.asset.files.filter(function (f) { return f.path.endsWith('.onnx'); })[0].url;
+        return m.PiperPlus.initialize({
+          ort: ctx.ort,
+          model: modelUrl,
+          language: 'en',
+          onProgress: function (p) {
+            if (p && p.percentage != null) npStatus('Piper model ' + Math.round(p.percentage) + '%');
+          }
+        });
+      });
+    }).then(function (p) {
+      piper = p;
+      $('np-speak').disabled = false;
+      npStatus('ready — Piper en_US-amy-medium');
+      record({ test: 'piper load', detail: 'ready', ms: null });
+    }).catch(function (e) {
+      npStatus('FAILED: ' + (e && e.message ? e.message : e));
+      record({ test: 'piper load', detail: 'FAILED ' + (e && e.message), ms: null });
+      $('np-load').disabled = false;
+    });
+  }
+
+  function npSpeak() {
+    if (!piper) return;
+    var text = $('tts-phrase').value;
+    npStatus('synthesising…');
+    var t0 = performance.now(), first = 0;
+    piperCtx = piperCtx || new (window.AudioContext || window.webkitAudioContext)();
+    piper.synthesize(text, { language: 'en' }).then(function (res) {
+      first = performance.now() - t0;
+      var pcm = res.audio || res.samples || res;
+      var rate = res.sampleRate || 22050;
+      var buf = piperCtx.createBuffer(1, pcm.length, rate);
+      buf.getChannelData(0).set(pcm);
+      if (piperSrc) { try { piperSrc.stop(); } catch (e) {} }
+      piperSrc = piperCtx.createBufferSource();
+      piperSrc.buffer = buf;
+      piperSrc.connect(piperCtx.destination);
+      piperSrc.start();
+      var secs = pcm.length / rate;
+      npStatus('synthesised ' + secs.toFixed(2) + ' s in ' + Math.round(first) + ' ms · RTF ' +
+               (first / 1000 / secs).toFixed(2));
+      record({ test: 'piper synth', detail: secs.toFixed(2) + 's audio, RTF ' + (first / 1000 / secs).toFixed(2),
+               ms: Math.round(first) });
+    }).catch(function (e) {
+      npStatus('synthesis failed: ' + (e && e.message ? e.message : e));
+    });
+  }
+
   // ---------------------------------------------------------------- 3. VAD
   var vadEvents = 0, vadT0 = 0;
   function startVad() {
@@ -683,6 +797,13 @@
   $('tts-ab').addEventListener('click', abCompare);
   $('tts-stop').addEventListener('click', stopSpeaking);
   $('tts-en-only').addEventListener('change', fillVoices);
+  $('np-load').addEventListener('click', loadPiper);
+  $('np-speak').addEventListener('click', npSpeak);
+  $('np-stop').addEventListener('click', function () {
+    if (piperSrc) { try { piperSrc.stop(); } catch (e) {} piperSrc = null; }
+    npStatus('stopped');
+  });
+
   $('vad-start').addEventListener('click', startVad);
   $('vad-stop').addEventListener('click', function () {
     App.Vad.stop();
