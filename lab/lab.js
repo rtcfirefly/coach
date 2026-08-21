@@ -507,6 +507,47 @@
     });
   }
 
+  /* Verified bytes go into a Cache Storage bucket keyed by URL, so a 92 MB model
+     is fetched once rather than on every visit. The cache is origin-scoped, so
+     what comes back out is what we put in — but "Re-verify" re-hashes it anyway,
+     because a cache that is never checked is a pin that stops meaning anything. */
+  var CACHE = 'speech-lab-v1';
+
+  function cacheAvailable() { return typeof caches !== 'undefined'; }
+
+  function cacheGet(url) {
+    if (!cacheAvailable()) return Promise.resolve(null);
+    return caches.open(CACHE).then(function (c) { return c.match(url); })
+      .then(function (r) { return r ? r.arrayBuffer() : null; })
+      .catch(function () { return null; });
+  }
+  function cachePut(url, buf) {
+    if (!cacheAvailable()) return Promise.resolve(false);
+    return caches.open(CACHE)
+      .then(function (c) { return c.put(url, new Response(buf)); })
+      .then(function () { return true; })
+      .catch(function () { return false; });
+  }
+  function cacheHas(url) {
+    if (!cacheAvailable()) return Promise.resolve(false);
+    return caches.open(CACHE).then(function (c) { return c.match(url); })
+      .then(function (r) { return !!r; }).catch(function () { return false; });
+  }
+  function cacheDelete(urls) {
+    if (!cacheAvailable()) return Promise.resolve();
+    return caches.open(CACHE).then(function (c) {
+      return Promise.all(urls.map(function (u) { return c.delete(u); }));
+    });
+  }
+
+  function storageLine() {
+    if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve('');
+    return navigator.storage.estimate().then(function (e) {
+      var used = (e.usage || 0) / 1e6, quota = (e.quota || 0) / 1e6;
+      return used.toFixed(0) + ' MB used of ' + (quota > 1000 ? (quota / 1000).toFixed(1) + ' GB' : quota.toFixed(0) + ' MB');
+    }).catch(function () { return ''; });
+  }
+
   function renderRegistry(reg) {
     var host = $('registry');
     Object.keys(reg.assets).forEach(function (key) {
@@ -533,29 +574,71 @@
       btn.textContent = 'Download & verify (' + (a.totalBytes / 1e6).toFixed(0) + ' MB)';
       var status = document.createElement('div'); status.className = 'stats';
 
+      var del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.style.display = 'none';
+      del.addEventListener('click', function () {
+        cacheDelete(a.files.map(function (f) { return f.url; })).then(function () {
+          status.textContent = 'removed from cache';
+          del.style.display = 'none';
+          btn.textContent = 'Download & verify (' + (a.totalBytes / 1e6).toFixed(0) + ' MB)';
+          storageLine().then(function (l) { if (l) status.textContent += ' · ' + l; });
+        });
+      });
+
+      // Reflect what is already cached so a revisit does not offer to re-download.
+      Promise.all(a.files.map(function (f) { return cacheHas(f.url); })).then(function (hits) {
+        if (hits.length && hits.every(Boolean)) {
+          btn.textContent = 'Re-verify from cache';
+          del.style.display = '';
+          status.textContent = 'cached — no download needed';
+        }
+      });
+
       btn.addEventListener('click', function () {
         // Explicit, per-asset consent naming the real cost before any byte moves.
-        var msg = 'Download ' + a.label + '?\n\n' +
-          (a.totalBytes / 1e6).toFixed(1) + ' MB from huggingface.co\n' +
-          a.files.length + ' file(s), each SHA-256 verified before use.\n\n' +
-          'On cellular this may be slow and will count against your data.';
-        if (!window.confirm(msg)) return;
+        var cachedAlready = btn.textContent.indexOf('Re-verify') === 0;
+        if (!cachedAlready) {
+          var msg = 'Download ' + a.label + '?\n\n' +
+            (a.totalBytes / 1e6).toFixed(1) + ' MB from huggingface.co\n' +
+            a.files.length + ' file(s), each SHA-256 verified, then cached.\n\n' +
+            'On cellular this may be slow and will count against your data.';
+          if (!window.confirm(msg)) return;
+        }
         btn.disabled = true;
         var t0 = performance.now(), i = 0;
         (function next() {
           if (i >= a.files.length) {
             var ms = Math.round(performance.now() - t0);
             status.textContent = 'verified all ' + a.files.length + ' file(s) in ' + ms + ' ms';
+            btn.textContent = 'Re-verify from cache';
+            del.style.display = '';
             record({ test: 'download ' + key, detail: 'verified ' + (a.totalBytes / 1e6).toFixed(1) + ' MB', ms: ms });
+            storageLine().then(function (l) { if (l) status.textContent += ' · ' + l; });
             btn.disabled = false;
             return;
           }
           var f = a.files[i++];
-          status.textContent = 'fetching ' + f.path + '…';
-          fetchVerified(f, function (p) {
-            status.textContent = 'fetching ' + f.path + ' — ' + Math.round(p * 100) + '%';
+          status.textContent = 'checking cache for ' + f.path + '…';
+          cacheGet(f.url).then(function (hit) {
+            if (hit) {
+              // Re-hash rather than trusting the cache blindly.
+              return crypto.subtle.digest('SHA-256', hit).then(function (d) {
+                if (hex(d) !== f.sha256) throw new Error('CACHED COPY FAILED VERIFICATION for ' + f.path);
+                status.textContent = f.path + ' ✓ from cache';
+                return true;
+              });
+            }
+            status.textContent = 'fetching ' + f.path + '…';
+            return fetchVerified(f, function (p) {
+              status.textContent = 'fetching ' + f.path + ' — ' + Math.round(p * 100) + '%';
+            }).then(function (buf) {
+              return cachePut(f.url, buf).then(function (okc) {
+                status.textContent = f.path + ' ✓ hash ok' + (okc ? ' · cached' : ' · NOT cached');
+                return true;
+              });
+            });
           }).then(function () {
-            status.textContent = f.path + ' ✓ hash ok';
             next();
           }).catch(function (e) {
             status.textContent = 'FAILED: ' + e.message;
@@ -565,7 +648,7 @@
         })();
       });
 
-      card.appendChild(btn); card.appendChild(status);
+      card.appendChild(btn); card.appendChild(del); card.appendChild(status);
       host.appendChild(card);
     });
   }
@@ -611,6 +694,21 @@
     var t = toMarkdown();
     if (navigator.clipboard) navigator.clipboard.writeText(t);
   });
+
+  function refreshUsage() {
+    storageLine().then(function (l) {
+      $('cache-usage').textContent = l ? 'browser storage: ' + l : 'storage estimate unavailable';
+    });
+  }
+  $('cache-clear').addEventListener('click', function () {
+    if (!cacheAvailable()) return;
+    if (!window.confirm('Delete every cached model? They will need re-downloading.')) return;
+    caches.delete(CACHE).then(function () {
+      $('cache-usage').textContent = 'cleared — reload to refresh the buttons';
+      refreshUsage();
+    });
+  });
+  refreshUsage();
 
   fetch('registry.json').then(function (r) { return r.json(); })
     .then(renderRegistry)
