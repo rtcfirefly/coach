@@ -12,6 +12,14 @@
     "@diffusionstudio/vits-web": {
       "version": "1.0.3",
       "integrity": "sha512-xvOmc3CTWXGKbyiLbsrMczNArm7Z0Bi0h3pij0RTX6SytY/NSqd7h5DdPNUUhBt0nSjWGbo5RIrJLoCQTUQ0nQ=="
+    },
+    "piper-plus": {
+      "version": "0.6.0",
+      "integrity": "sha512-hly52rRUKrQLFwLC0tPCd4o9raZTGoYC0KZ5AfZoVpouiiLQ3C7+GcdlhepqXA5Y5YSq4h44HCmgdeWIa0UNUw=="
+    },
+    "@piper-plus/g2p": {
+      "version": "0.4.1",
+      "integrity": "sha512-cVQ8u+DcQQas2KLGL7MV48YsKjvBOQhHK/LveSSkUBbP8ajxi3h1cSuq+AwW9AvInAm/Dqtg/3r4gPL64XY1ww=="
     }
   },
   "profiles": {
@@ -94,6 +102,250 @@
           "sha256": "e2701cb8c73580ab395a67ad036ea1a4a9e50500c33c8b8499d159c3638451f3",
           "bytes": 130569,
           "sri": "sha384-IAKEenfXR3k8BObbH1ht8DF4cm8YFIf/Cpe1SV0pIhaYsJqjtdkQLaVodLGFcrI8"
+        }
+      ]
+    },
+    "piper-plus": {
+      "note": "Neural TTS, MIT, unbundled ES source. English routes through the JS g2p adapter; the 58 MB Rust WASM phonemizer is loaded via a dynamic import that the English path never reaches. Needs the ort-wasm-only profile as a peer, plus one voice model (20-65 MB) fetched separately.",
+      "totalBytes": 363465,
+      "files": [
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/audio-backend-factory.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/audio-backend-factory.js",
+          "sha256": "5dea48eff4f49fc1a90ccc00c0003b4844409d8564a86899d41889241a528611",
+          "bytes": 6260
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/audio-result.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/audio-result.js",
+          "sha256": "7dec0cd93ec3e5496149fc39bdd4d673a24ab8113f15c34354ac048ccf33077f",
+          "bytes": 7343
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/audio-worklet-processor.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/audio-worklet-processor.js",
+          "sha256": "8aa6a30b4c2fae7177edeb70e6879215293a24c4e92af2f9997dd9a98e202473",
+          "bytes": 1940
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/benchmark.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/benchmark.js",
+          "sha256": "6ae9554d54218817f881c30583d82c9c28d5280c4a120036e74f03b9ad61d9fb",
+          "bytes": 2208
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/cache-manager.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/cache-manager.js",
+          "sha256": "fdc50d5b2b998fc8b4bb39a32db03a01f341b769935b168e1b051dd53f1e4e47",
+          "bytes": 9060
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/index.js",
+          "sha256": "cc5f6b2314311dec073e4d8a20823f16e2e49f8fc88961b177bee3c545273df5",
+          "bytes": 32782
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/memory-pool.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/memory-pool.js",
+          "sha256": "ef4a1d7130c1e7fdb41f8e0ecada93bf25a373bd4e3e60c3605eb035d7cd6367",
+          "bytes": 3624
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/model-manager.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/model-manager.js",
+          "sha256": "9859305d0a233ac90eea3097d4e5160085f81809e02a52dd0b5e070f3c3f2193",
+          "bytes": 14114
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/phonemizer-compat.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/phonemizer-compat.js",
+          "sha256": "b85a6bab2ccac8df051ce4821e849d87f7182f912a95086420181b32488399d8",
+          "bytes": 407
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/phonemizer/composite-phonemizer.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/phonemizer/composite-phonemizer.js",
+          "sha256": "fd1d99f4139eef4f032a042066d23e4d303efa79f5505440ff94563f27c6bae8",
+          "bytes": 2834
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/phonemizer/js-g2p-adapter.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/phonemizer/js-g2p-adapter.js",
+          "sha256": "8944ee18114e037bb3a14cdebf78b1f265eb604c9c4be3156fc3dc92999d129a",
+          "bytes": 2197
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/phonemizer/rust-wasm-adapter.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/phonemizer/rust-wasm-adapter.js",
+          "sha256": "19d51cbf3ff0191ba360348124b1a883bcf424d6d042c13f3fc8f19583e06a51",
+          "bytes": 4069
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/resampler.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/resampler.js",
+          "sha256": "efc21c74244e3d51b4470ef3dd978d7396d6cd02e3a4717b923fabc81e32a6b4",
+          "bytes": 1984
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/speaker-encoder.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/speaker-encoder.js",
+          "sha256": "eb973d9f64b9b0f9851599dd4f44d4763ac47cfe89b8444418bec7ba8336ea35",
+          "bytes": 8222
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/streaming-pipeline.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/streaming-pipeline.js",
+          "sha256": "98ac0cefeb1fde3c7bcdaa40ee0d8ad944c3fa316aa90d348dc952106364a1cc",
+          "bytes": 6736
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/timing.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/timing.js",
+          "sha256": "5b93833677cc6b0fc4c8a92d018ab6350f3c0bc609e9339239b80096c858c6eb",
+          "bytes": 8741
+        },
+        {
+          "pkg": "piper-plus@0.6.0",
+          "path": "src/webgpu-session-manager.js",
+          "url": "https://cdn.jsdelivr.net/npm/piper-plus@0.6.0/src/webgpu-session-manager.js",
+          "sha256": "a0ba4a125dacaae78f171ef794eb27c56e0f2d8fa4da832a14ad589a0f0ad73c",
+          "bytes": 4410
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/custom-dictionary.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/custom-dictionary.js",
+          "sha256": "5c0c542442b039e7a47ba7e7a87e95da624cbba0887bce95de5618bf442e635a",
+          "bytes": 7816
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/detect.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/detect.js",
+          "sha256": "32aeb54b9f23daafffd5e97fed9723974553926b05a591e3c5873fea796ef5c5",
+          "bytes": 15784
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/dict-loader.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/dict-loader.js",
+          "sha256": "21415be082b7302472517f725cfe89433abfb5286b6793672afca186038ab908",
+          "bytes": 13553
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/en/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/en/index.js",
+          "sha256": "aa35e0037e45a93546cf951c8210625f6f26321ea9c8a5bdbfdad81ae4accfab",
+          "bytes": 18135
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/encode.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/encode.js",
+          "sha256": "a1d341dc1b03038ca44ddf3002dd71c0b441370a1bfffad0703890f1760c598f",
+          "bytes": 4951
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/es/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/es/index.js",
+          "sha256": "6d131532a90b15135592afa44cf5ec5674a96a3f01b82a5b2351b85acbe7479c",
+          "bytes": 25839
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/fr/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/fr/index.js",
+          "sha256": "b13449b22b5b7b991514f0841398c4f3c37cd4eda20f74a54126cfbad6faff7a",
+          "bytes": 28985
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/index.js",
+          "sha256": "0c303eb7ea37722989ee4bb4d76dab99a270557ed58af55ba0466a4c3eaf43b5",
+          "bytes": 11572
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/ja/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/ja/index.js",
+          "sha256": "bb4897be443cb89552a6bff538f500a78a5f4290843d9cff9b1e6eac46ff9921",
+          "bytes": 6186
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/ja/phoneme-extract.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/ja/phoneme-extract.js",
+          "sha256": "5cf01519bde56b2392afb91e47c933ec25754f9278b9ddd3cd7790c58c62ea51",
+          "bytes": 6019
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/ko/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/ko/index.js",
+          "sha256": "c71f26ec052214acece2a6236d9217f4575670969fe88e09c5598645e05d3d6c",
+          "bytes": 17582
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/latin-common/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/latin-common/index.js",
+          "sha256": "08977e56d9ae8871081f8b4b8db4f75bedaf318c4483a9b1f1b81ecd6f68a556",
+          "bytes": 6737
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/pt/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/pt/index.js",
+          "sha256": "ceaf06cc1b00a1dbe153a28801354de7e7b385e840c63ebb03f6beb167e0a51e",
+          "bytes": 29977
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/pua-map.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/pua-map.js",
+          "sha256": "05a8bb379460c5bb9dd881c16dcf2eaba419feacb3ab9998d1238531352a279b",
+          "bytes": 7459
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/ssml.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/ssml.js",
+          "sha256": "4030f722bf3bcb6cd2317c9b06a169604da60656d03b6e7c8ee1b0904fa6c428",
+          "bytes": 12701
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/sv/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/sv/index.js",
+          "sha256": "825b52432433016b27ec806686cbdb1a47f1e9b7da8ed2d3ae78f44b2fd935ef",
+          "bytes": 27753
+        },
+        {
+          "pkg": "@piper-plus/g2p@0.4.1",
+          "path": "src/zh/index.js",
+          "url": "https://cdn.jsdelivr.net/npm/@piper-plus/g2p@0.4.1/src/zh/index.js",
+          "sha256": "fab78df2d3cad0bcf9a95d98b532a006ac4df783b01d480190d9c1e875323296",
+          "bytes": 5485
         }
       ]
     }
