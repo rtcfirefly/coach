@@ -319,7 +319,7 @@
       npStatus('note: cache worker not active yet — reload the page first, or the ' +
                'voice will be downloaded a second time by the engine');
     }
-    return registry().then(function (jsreg) {
+    return App.Engines.registry().then(function (jsreg) {
       return loadOrt(jsreg);
     }).then(function (ort) {
       // Verify the pinned voice before piper-plus is told to load it. See the

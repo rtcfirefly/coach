@@ -20,6 +20,22 @@ global.window=global;
 global.navigator={userAgent:'smoke',hardwareConcurrency:8,mediaDevices:{}};
 global.performance={now:()=>Date.now()};
 global.matchMedia=()=>({matches:false});
+global.alert=()=>{};
+global.confirm=()=>false;
+// Minimal WebAudio so the noise generator and VAD paths can be clicked.
+function node(){return{connect(){},disconnect(){},start(){},stop(){},
+  gain:{value:0,setValueAtTime(){},exponentialRampToValueAtTime(){}},
+  frequency:{value:0},type:'',buffer:null,loop:false};}
+global.AudioContext=function(){return{sampleRate:48000,currentTime:0,state:'running',
+  destination:node(),resume(){},close(){},
+  createGain:node,createOscillator:node,createBufferSource:node,
+  createBuffer:(c,l)=>({getChannelData:()=>new Float32Array(l)}),
+  audioWorklet:{addModule:()=>Promise.resolve()}};};
+global.navigator.serviceWorker={register:()=>Promise.resolve(),ready:Promise.resolve(),controller:null};
+global.navigator.storage={estimate:()=>Promise.resolve({usage:0,quota:0})};
+global.caches={open:()=>Promise.resolve({match:()=>Promise.resolve(null),put:()=>Promise.resolve(),delete:()=>Promise.resolve()}),delete:()=>Promise.resolve()};
+global.Response=class{constructor(b){this._b=b}};
+global.Request=class{constructor(u){this.url=u}};
 const spoken=[];
 global.SpeechSynthesisUtterance=function(t){this.text=t;};
 global.speechSynthesis={
@@ -32,6 +48,7 @@ global.fetch=()=>Promise.resolve({json:()=>Promise.resolve({assets:{}})});
 global.App={Vad:{start:()=>Promise.resolve(false),stop(){}}};
 global.crypto={subtle:{}};
 
+require('./engines.js');
 require('./lab.js');
 
 let p=0,f=0; const ok=(n,c)=>{c?p++:f++;console.log((c?'  PASS ':'  FAIL ')+n)};
@@ -45,6 +62,20 @@ ok('shortlist rendered a chip', els['tts-shortlist'].children.length===1);
 try{ fire('tts-star');  ok('Shortlist dedupes', els['tts-shortlist'].children.length===1);}catch(e){ok('dedupe: '+e.message,false);}
 try{ fire('tts-stop');  ok('Stop does not throw', true);}catch(e){ok('Stop does not throw: '+e.message,false);}
 
+
+// --- every button must survive a click. Two ReferenceErrors have shipped this
+// way (make(), registry()): the handler is wired, the syntax is fine, and it
+// throws the moment it runs. Clicking each one is the only thing that catches it.
+{
+  const ids=Object.keys(els).filter(id=>els[id]._h && els[id]._h.click);
+  for (const id of ids) {
+    let threw=null;
+    try { els[id]._h.click.call(els[id],{}); } catch(e){ threw=e.message; }
+    ok('click #'+id+' does not throw', threw===null, threw||'');
+    if(threw) console.log('        -> '+threw);
+  }
+  ok('found buttons to click', ids.length>=8, 'only '+ids.length);
+}
 
 // --- deltaFrom: the shared cumulative/incremental reconciler
 {
