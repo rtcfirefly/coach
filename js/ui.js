@@ -264,6 +264,9 @@
     el.input.disabled = !enabled;
     el.sendBtn.disabled = !enabled;
     el.micBtn.disabled = !enabled;
+    // Also the Call button: leaving it live let a call start mid-turn, giving
+    // two runTurn calls the same session object to push messages into.
+    if (el.callBtn) el.callBtn.disabled = !enabled;
   }
   function focusInput() { try { el.input.focus(); } catch (e) {} }
 

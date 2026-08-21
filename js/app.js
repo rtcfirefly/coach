@@ -6,6 +6,23 @@
 
   var busy = false;
 
+  /* One gate for every flow that mutates the current session. These diverged:
+     newChat and editMessage checked for an active call, finish/import/suggest
+     did not, and clearAll checked nothing at all — so "Finish chat" during a
+     call would archive the live conversation while the call kept writing to it.
+     call.js drives runTurn directly and never sets `busy`, which is why an
+     active call has to be checked separately rather than folded into it. */
+  function blocked() {
+    if (busy) return 'Hang on — finishing the current reply.';
+    if (App.Call && App.Call.isActive()) return 'End the call first.';
+    return null;
+  }
+  function gate() {
+    var why = blocked();
+    if (why) { UI.toast(why, 'info'); return true; }
+    return false;
+  }
+
   // ----- turn handling -----------------------------------------------------
   function handleSend(text) {
     if (busy) return;
@@ -47,7 +64,7 @@
   }
 
   function handleFinish() {
-    if (busy) return;
+    if (gate()) return;
     var session = Store.getCurrentSession();
     if (!sessionHasUserInput(session)) {
       UI.toast('Nothing to summarize yet — log a workout first.', 'info');
@@ -78,7 +95,7 @@
 
   // ----- import history ----------------------------------------------------
   function handleImport() {
-    if (busy) return;
+    if (gate()) return;
     var text = UI.getImportText();
     if (!text) { UI.toast('Paste some history first.', 'info'); return; }
     if (!Store.getApiKey()) { UI.toast('Add your Anthropic API key first.', 'error'); return; }
@@ -109,8 +126,7 @@
   // Drop the chosen user message and everything after it, then refill the
   // composer so the user can change it and resend (re-running from that point).
   function handleEditMessage(ordinal) {
-    if (busy) { UI.toast('Hang on — finishing the current reply.', 'info'); return; }
-    if (App.Call && App.Call.isActive()) { UI.toast('Can’t edit during a call.', 'info'); return; }
+    if (gate()) return;
     var session = Store.getCurrentSession();
     if (!session || !Array.isArray(session.messages)) return;
     var msgs = session.messages, count = -1, target = -1;
@@ -130,8 +146,7 @@
 
   // ----- clear conversation WITHOUT summarizing/syncing -------------------
   function handleNewChat() {
-    if (busy) { UI.toast('Hang on — finishing the current reply.', 'info'); return; }
-    if (App.Call && App.Call.isActive()) { UI.toast('End the call first.', 'info'); return; }
+    if (gate()) return;
     var s = Store.getCurrentSession();
     var hasContent = s && Array.isArray(s.messages) && s.messages.some(function (m) {
       return m.role === 'user' && typeof m.content === 'string';
@@ -145,7 +160,7 @@
 
   // ----- build sessions from history --------------------------------------
   function handleSuggestSessions() {
-    if (busy) return;
+    if (gate()) return;
     if (!Store.getApiKey()) { UI.toast('Add your Anthropic API key first.', 'error'); UI.showScreen('settings'); return; }
     busy = true;
     UI.setSuggestBusy(true);
@@ -162,6 +177,9 @@
 
   // ----- clear all ---------------------------------------------------------
   function handleClearAll() {
+    // Previously unguarded entirely: wiping storage mid-turn let the in-flight
+    // turn write the cleared conversation straight back.
+    if (gate()) return;
     Store.clearAll();
     Store.ensureCurrentSession();
     UI.refreshSettings();
