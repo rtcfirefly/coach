@@ -44,4 +44,20 @@ try{ fire('tts-star');  ok('Shortlist does not throw', true);}catch(e){ok('Short
 ok('shortlist rendered a chip', els['tts-shortlist'].children.length===1);
 try{ fire('tts-star');  ok('Shortlist dedupes', els['tts-shortlist'].children.length===1);}catch(e){ok('dedupe: '+e.message,false);}
 try{ fire('tts-stop');  ok('Stop does not throw', true);}catch(e){ok('Stop does not throw: '+e.message,false);}
-setTimeout(()=>{ console.log('\n'+p+' passed, '+f+' failed'); process.exit(f?1:0); },50);
+
+
+// --- deltaFrom: the shared cumulative/incremental reconciler
+{
+  const src=require('fs').readFileSync('./lab.js','utf8');
+  const body=src.slice(src.indexOf('function deltaFrom'), src.indexOf('// Build an element'));
+  const deltaFrom=new Function(body+'; return deltaFrom;')();
+  const d=(a,b)=>deltaFrom(a,b);
+  ok('cumulative growth trimmed', d('I did','I did 20')==='20');
+  ok('verbatim repeat dropped', d('yes','yes')==='');
+  ok('case-insensitive prefix', d('i did','I did 20')==='20');
+  ok('new fragment kept whole', d('three sets','of ten')==='of ten');
+  ok('empty prev passes through', d('','yes')==='yes');
+  ok('empty next is empty', d('yes','')==='');
+}
+
+setTimeout(()=>{ console.log('\n'+p+' passed, '+f+' failed'); process.exit(f?1:0); },80);
