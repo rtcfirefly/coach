@@ -123,6 +123,18 @@
 </section>
 
 <section class="card">
+  <h2>2c · Kokoro <span class="tag warn">~95 MB download</span></h2>
+  <p class="hint">Rated above Piper in the research. Runs on raw ONNX Runtime with the same
+    vendored g2p — measured 100% vocab coverage, so no extra phonemizer.</p>
+  <div class="row">
+    <select id="kk-voice"></select>
+    <button id="kk-load" class="primary">Load Kokoro</button>
+    <button id="kk-speak" disabled>Speak</button>
+  </div>
+  <div id="kk-stats" class="stats">not loaded</div>
+</section>
+
+<section class="card">
   <h2>3 · Voice activity detection <span class="tag free">no download</span></h2>
   <p class="hint">The module from <code>js/vad.js</code>. Watch the noise floor adapt, then check
     it still triggers on speech with music and plates in the background.</p>
@@ -156,6 +168,6 @@
 
 <script src="../js/vad.js?v=18"></script>
 <script src="engines.js?v=3"></script>
-<script src="lab.js?v=10"></script>
+<script src="lab.js?v=11"></script>
 </body>
 </html>

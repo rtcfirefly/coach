@@ -423,6 +423,119 @@
     });
   }
 
+  // ------------------------------------------------- 2c. Kokoro (raw ORT)
+  /* Kokoro has no JS wrapper here — it runs directly on ONNX Runtime. The piece
+     that usually makes that expensive, a matching phonemizer, is already solved:
+     the vendored g2p produces IPA that covers Kokoro's 115-symbol vocab 100%
+     (measured offline over four coaching phrases, zero unmapped). So this is
+     tokens -> ids -> one session.run. */
+  var kSession = null, kVocab = null, kStyles = {}, kG2P = null;
+
+  function kStatus(t) { $('kk-stats').textContent = t; }
+
+  function loadKokoro() {
+    $('kk-load').disabled = true;
+    return App.Engines.registry().then(loadOrt).then(function (ort) {
+      return fetch('registry.json').then(function (r) { return r.json(); }).then(function (mreg) {
+        var a = mreg.assets['kokoro-82m'];
+        var got = {};
+        var i = 0;
+        return (function next() {
+          if (i >= a.files.length) return { ort: ort, got: got, asset: a };
+          var f = a.files[i++];
+          return cacheGet(f.url).then(function (hit) {
+            if (hit) return crypto.subtle.digest('SHA-256', hit).then(function (d) {
+              if (hex(d) !== f.sha256) throw new Error('cached ' + f.path + ' failed verification');
+              kStatus(f.path + ' ✓ cached'); got[f.path] = hit;
+            });
+            kStatus('fetching ' + f.path + '…');
+            return fetchVerified(f, function (p) {
+              kStatus(f.path + ' ' + Math.round(p * 100) + '%');
+            }).then(function (b) { got[f.path] = b; return cachePut(f.url, b); });
+          }).then(next);
+        })();
+      });
+    }).then(function (ctx) {
+      kStatus('parsing tokenizer…');
+      var tok = JSON.parse(new TextDecoder().decode(ctx.got['tokenizer.json']));
+      kVocab = (tok.model && tok.model.vocab) || {};
+      ctx.asset.voices.forEach(function (v) {
+        // Each .bin is float32 [tokens][1][256]; slice by token count at synth time.
+        kStyles[v] = new Float32Array(ctx.got['voices/' + v + '.bin']);
+      });
+      kStatus('creating ONNX session (92 MB model)…');
+      return ctx.ort.InferenceSession.create(
+        new Uint8Array(ctx.got['onnx/model_quantized.onnx']),
+        { executionProviders: ['wasm'] }
+      );
+    }).then(function (sess) {
+      kSession = sess;
+      return import('./vendor/g2p/index.js').then(function (m) {
+        return m.G2P.create({ languages: ['en'] });
+      });
+    }).then(function (g) {
+      kG2P = g;
+      $('kk-speak').disabled = false;
+      // Input names vary between exports; report them rather than assume.
+      kStatus('ready — inputs: ' + (kSession.inputNames || []).join(', '));
+      record({ test: 'kokoro load', detail: 'inputs ' + (kSession.inputNames || []).join('/'), ms: null });
+    }).catch(function (e) {
+      kStatus('FAILED: ' + (e && e.message ? e.message : e));
+      record({ test: 'kokoro load', detail: 'FAILED ' + (e && e.message), ms: null });
+      $('kk-load').disabled = false;
+    });
+  }
+
+  function kSpeak() {
+    if (!kSession) return;
+    var text = $('tts-phrase').value;
+    var voice = $('kk-voice').value;
+    var t0 = performance.now();
+    kStatus('phonemising…');
+    try {
+      var toks = kG2P.phonemize(text, 'en').tokens;
+      var ids = [0];   // leading pad, as Kokoro expects
+      var dropped = 0;
+      toks.forEach(function (t) {
+        if (Object.prototype.hasOwnProperty.call(kVocab, t)) ids.push(kVocab[t]);
+        else dropped++;
+      });
+      ids.push(0);
+      if (dropped) kStatus('note: ' + dropped + ' phoneme(s) unmapped');
+
+      // style is [1,256] taken at the row for this token count
+      var all = kStyles[voice];
+      var row = Math.min(ids.length, Math.floor(all.length / 256) - 1);
+      var style = all.slice(row * 256, row * 256 + 256);
+
+      var ort = window.ort;
+      var feeds = {};
+      var names = kSession.inputNames || [];
+      feeds[names[0] || 'input_ids'] = new ort.Tensor('int64', BigInt64Array.from(ids.map(BigInt)), [1, ids.length]);
+      feeds[names[1] || 'style'] = new ort.Tensor('float32', style, [1, 256]);
+      feeds[names[2] || 'speed'] = new ort.Tensor('float32', new Float32Array([1.0]), [1]);
+
+      kStatus('running model…');
+      kSession.run(feeds).then(function (out) {
+        var key = Object.keys(out)[0];
+        var pcm = out[key].data;
+        var ms = performance.now() - t0;
+        piperCtx = piperCtx || new (window.AudioContext || window.webkitAudioContext)();
+        var rate = 24000;   // Kokoro outputs 24 kHz
+        var buf = piperCtx.createBuffer(1, pcm.length, rate);
+        buf.getChannelData(0).set(pcm);
+        if (piperSrc) { try { piperSrc.stop(); } catch (e) {} }
+        piperSrc = piperCtx.createBufferSource();
+        piperSrc.buffer = buf; piperSrc.connect(piperCtx.destination); piperSrc.start();
+        var secs = pcm.length / rate;
+        kStatus('synthesised ' + secs.toFixed(2) + ' s in ' + Math.round(ms) + ' ms · RTF ' + (ms / 1000 / secs).toFixed(2));
+        record({ test: 'kokoro synth ' + voice, detail: secs.toFixed(2) + 's, RTF ' + (ms / 1000 / secs).toFixed(2), ms: Math.round(ms) });
+      }).catch(function (e) { kStatus('run failed: ' + (e && e.message ? e.message : e)); });
+    } catch (e) {
+      kStatus('failed: ' + (e && e.message ? e.message : e));
+    }
+  }
+
   // ---------------------------------------------------------------- 3. VAD
   var vadEvents = 0, vadT0 = 0;
   function startVad() {
@@ -830,6 +943,8 @@
   $('tts-ab').addEventListener('click', abCompare);
   $('tts-stop').addEventListener('click', stopSpeaking);
   $('tts-en-only').addEventListener('change', fillVoices);
+  $('kk-load').addEventListener('click', loadKokoro);
+  $('kk-speak').addEventListener('click', kSpeak);
   $('np-load').addEventListener('click', loadPiper);
   $('np-voice').addEventListener('change', function () {
     // A new voice needs a fresh PiperPlus — the session is bound to one model.
@@ -899,6 +1014,10 @@
     .then(function (reg) {
       // Voice picker: every piper-* asset, cheapest first, so the size cost of
       // the high tier is visible before committing to the download.
+      var ks = $('kk-voice');
+      (reg.assets['kokoro-82m'].voices || []).forEach(function (v) {
+        var o = document.createElement('option'); o.value = v; o.textContent = v; ks.appendChild(o);
+      });
       var sel = $('np-voice');
       Object.keys(reg.assets)
         .filter(function (k) { return reg.assets[k].engine === 'piper-plus'; })
