@@ -49,7 +49,8 @@
       ['crossOriginIsolated', window.crossOriginIsolated ? 'yes' : 'no'],
       ['cores', navigator.hardwareConcurrency || '?'],
       ['deviceMemory', navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'not exposed'],
-      ['standalone PWA', window.matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no (browser tab)']
+      ['standalone PWA', window.matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no (browser tab)'],
+      ['mic permission', 'checking…']
     ];
     var host = $('device');
     rows.forEach(function (r) {
@@ -59,6 +60,19 @@
       var v = document.createElement('span'); v.className = 'v'; v.textContent = String(r[1]);
       d.appendChild(k); d.appendChild(v); host.appendChild(d);
     });
+    // Fill the permission row asynchronously; 'prompt' here explains a first run
+    // that hears nothing, because the grant dialog eats the utterance.
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'microphone' }).then(function (p) {
+        var rows2 = host.querySelectorAll ? [] : [];
+        var kids = host.children;
+        var last = kids[kids.length - 1];
+        if (last && last.children && last.children[1]) {
+          last.children[1].textContent = p.state +
+            (p.state === 'prompt' ? ' — first run will lose the utterance to the dialog' : '');
+        }
+      }).catch(function () {});
+    }
     if (navigator.gpu && navigator.gpu.requestAdapter) {
       navigator.gpu.requestAdapter().then(function (a) {
         if (!a) return;
@@ -299,6 +313,18 @@
   }
 
   var werRec = null, werT0 = 0, werFirst = 0;
+
+  /* A run that hears nothing is the interesting case and the old harness said
+     only "(nothing)". Track what the recogniser actually did so the next run
+     distinguishes: never started, started but no audio, an explicit error, or
+     results that arrived and scored badly. */
+  function micPermission() {
+    if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve('unknown');
+    return navigator.permissions.query({ name: 'microphone' })
+      .then(function (p) { return p.state; })
+      .catch(function () { return 'unqueryable'; });
+  }
+
   function startWer() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert('No SpeechRecognition here.'); return; }
@@ -310,6 +336,12 @@
     werRec.lang = 'en-US'; werRec.interimResults = true; werRec.continuous = true; werRec.maxAlternatives = 1;
     werT0 = performance.now(); werFirst = 0;
     var heard = '', emitted = 0;
+    var diag = { started: false, results: 0, err: null, perm: 'pending' };
+    micPermission().then(function (p) { diag.perm = p; });
+    werRec.onstart = function () {
+      diag.started = true;
+      $('wer-stats').textContent = 'listening… (mic ' + diag.perm + ')';
+    };
     // Chrome on Android emits CUMULATIVE finals, so appending each new index
     // replays the utterance. Keep only the part not already accumulated.
     function tail(acc, next) {
@@ -323,6 +355,7 @@
       return n;
     }
     werRec.onresult = function (e) {
+      diag.results++;
       var interim = '', fresh = '';
       for (var i = 0; i < e.results.length; i++) {
         var r = e.results[i];
@@ -343,12 +376,24 @@
       $('wer-start').disabled = false; $('wer-stop').disabled = true;
       var res = wer(target, heard);
       var pct = res.wer == null ? '?' : (res.wer * 100).toFixed(0) + '%';
-      var noisy = noiseNode ? ' · WITH NOISE (' + $('noise-kind').value + ' @ ' + $('noise-level').value + ')' : ' · quiet';
-      $('wer-stats').textContent = 'WER ' + pct + ' (' + res.edits + ' edits / ' + res.n + ' words) · first result ' +
-        Math.round(werFirst) + ' ms' + noisy;
-      record({ test: 'WER' + noisy, detail: pct + ' — heard: ' + (heard || '(nothing)'), ms: Math.round(werFirst) });
+      var noisy = noiseNode ? ' · NOISE ' + $('noise-kind').value + '@' + $('noise-level').value : ' · quiet';
+      // Say why nothing was heard rather than reporting a bare 100%.
+      var why = '';
+      if (!heard) {
+        if (diag.err) why = ' [error: ' + diag.err + ']';
+        else if (!diag.started) why = ' [recogniser never started — mic ' + diag.perm + ']';
+        else if (!diag.results) why = ' [started, mic ' + diag.perm + ', but no results — no audio reached it]';
+        else why = ' [' + diag.results + ' result events, all empty]';
+      }
+      $('wer-stats').textContent = 'WER ' + pct + ' (' + res.edits + '/' + res.n + ' words) · first ' +
+        Math.round(werFirst) + ' ms' + noisy + why;
+      record({ test: 'WER' + noisy, detail: pct + ' — heard: ' + (heard || '(nothing)') + why,
+               ms: Math.round(werFirst) });
     };
-    werRec.onerror = function (e) { $('wer-stats').textContent = 'error: ' + (e && e.error); };
+    werRec.onerror = function (e) {
+      diag.err = (e && e.error) || 'unknown';
+      $('wer-stats').textContent = 'error: ' + diag.err + ' (mic ' + diag.perm + ')';
+    };
     werRec.start();
     $('wer-start').disabled = true; $('wer-stop').disabled = false;
   }
