@@ -107,37 +107,128 @@
     $('sr-start').disabled = true; $('sr-stop').disabled = false;
   }
 
-  // ---------------------------------------------------------------- 2. TTS
+  // ---------------------------------------------------------------- 2. voice bench
+  var shortlist = [], voiceCache = [], abTimer = null;
+
+  function voices() {
+    var all = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+    if (!$('tts-en-only') || !$('tts-en-only').checked) return all;
+    return all.filter(function (v) { return /^en/i.test(v.lang); });
+  }
+
   function fillVoices() {
-    var sel = $('tts-voice');
-    var list = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+    var sel = $('tts-voice'), list = voices();
+    var keep = sel.value;
+    voiceCache = list;
     sel.innerHTML = '';
     list.forEach(function (v, i) {
       var o = document.createElement('option');
       o.value = String(i);
-      o.textContent = v.name + ' (' + v.lang + ')' + (v.localService === false ? ' — network' : '');
+      // localService===false means a network voice, which is usually the good one.
+      o.textContent = v.name + ' (' + v.lang + ')' + (v.localService === false ? ' — HQ' : '');
       sel.appendChild(o);
     });
-    if (!list.length) { var o = document.createElement('option'); o.textContent = 'no voices yet…'; sel.appendChild(o); }
+    if (!list.length) {
+      var o = document.createElement('option');
+      o.textContent = 'no voices yet — Android often needs a few seconds';
+      sel.appendChild(o);
+    }
+    if (keep && sel.querySelector('option[value="' + keep + '"]')) sel.value = keep;
   }
-  function speak() {
-    if (!window.speechSynthesis) return;
-    var list = speechSynthesis.getVoices();
-    var v = list[parseInt($('tts-voice').value, 10)];
-    var u = new SpeechSynthesisUtterance($('tts-text').value);
-    if (v) { u.voice = v; u.lang = v.lang; }
-    var t0 = performance.now(), first = 0;
-    u.onstart = function () {
-      first = performance.now() - t0;
-      $('tts-stats').textContent = 'time to first audio: ' + Math.round(first) + ' ms';
-    };
-    u.onend = function () {
-      var total = Math.round(performance.now() - t0);
-      $('tts-stats').textContent = 'first audio ' + Math.round(first) + ' ms · total ' + total + ' ms';
-      record({ test: 'TTS ' + (v ? v.name : 'default'), detail: 'ttfa ' + Math.round(first) + ' ms, total ' + total + ' ms', ms: Math.round(first) });
-    };
+
+  /* Speak one line and resolve when it finishes, so callers can sequence. */
+  function say(voice, text, onFirst) {
+    return new Promise(function (resolve) {
+      if (!window.speechSynthesis) return resolve(null);
+      var u = new SpeechSynthesisUtterance(text);
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      var t0 = performance.now(), first = 0;
+      u.onstart = function () { first = performance.now() - t0; if (onFirst) onFirst(first); };
+      u.onend = function () { resolve({ first: Math.round(first), total: Math.round(performance.now() - t0) }); };
+      u.onerror = function () { resolve(null); };
+      speechSynthesis.speak(u);
+    });
+  }
+
+  function stopSpeaking() {
+    if (abTimer) { clearTimeout(abTimer); abTimer = null; }
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    $('tts-stats').textContent = 'stopped';
+  }
+
+  function speakOne() {
+    var v = voiceCache[parseInt($('tts-voice').value, 10)];
+    var text = $('tts-phrase').value;
     speechSynthesis.cancel();
-    speechSynthesis.speak(u);
+    say(v, text, function (f) {
+      $('tts-stats').textContent = (v ? v.name : 'default') + ' — first audio ' + Math.round(f) + ' ms';
+    }).then(function (r) {
+      if (!r) return;
+      $('tts-stats').textContent = (v ? v.name : 'default') + ' — first audio ' + r.first +
+        ' ms · total ' + r.total + ' ms' + (v && v.localService === false ? ' · network voice' : ' · on-device');
+      record({ test: 'voice ' + (v ? v.name : 'default'), detail: r.total + ' ms total', ms: r.first });
+    });
+  }
+
+  /* Sequential pass over every voice, announcing each by name first so you can
+     tell them apart without watching the screen — which is the point, since you
+     will be using this with the phone on a bench. */
+  function playAll() {
+    var list = voices(), text = $('tts-phrase').value, i = 0;
+    speechSynthesis.cancel();
+    (function next() {
+      if (i >= list.length) { $('tts-stats').textContent = 'played ' + list.length + ' voices'; return; }
+      var v = list[i++];
+      $('tts-voice').value = String(i - 1);
+      $('tts-stats').innerHTML = '';
+      var lbl = make('span', 'voice-now', i + '/' + list.length + '  ' + v.name);
+      $('tts-stats').appendChild(lbl);
+      say(v, v.name.split(/[ (]/)[0] + '. ' + text).then(function (r) {
+        if (r) record({ test: 'voice ' + v.name, detail: r.total + ' ms', ms: r.first });
+        next();
+      });
+    })();
+  }
+
+  function renderShortlist() {
+    var host = $('tts-shortlist');
+    host.innerHTML = '';
+    shortlist.forEach(function (name, idx) {
+      var chip = make('span', 'chip', name);
+      var x = make('button', null, '✕');
+      x.type = 'button';
+      x.addEventListener('click', function () { shortlist.splice(idx, 1); renderShortlist(); });
+      chip.appendChild(x);
+      host.appendChild(chip);
+    });
+    $('tts-ab').disabled = shortlist.length < 2;
+  }
+
+  function starCurrent() {
+    var v = voiceCache[parseInt($('tts-voice').value, 10)];
+    if (!v) return;
+    if (shortlist.indexOf(v.name) === -1) shortlist.push(v.name);
+    renderShortlist();
+  }
+
+  /* Alternate the shortlist so you hear them back to back. Differences that are
+     obvious in A/B are inaudible when the samples are a minute apart. */
+  function abCompare() {
+    var all = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+    var picked = shortlist.map(function (n) {
+      return all.filter(function (v) { return v.name === n; })[0];
+    }).filter(Boolean);
+    if (picked.length < 2) return;
+    var text = $('tts-phrase').value, i = 0, rounds = 0;
+    speechSynthesis.cancel();
+    (function next() {
+      if (rounds >= picked.length * 2) { $('tts-stats').textContent = 'A/B done'; return; }
+      var v = picked[i % picked.length];
+      i++; rounds++;
+      $('tts-stats').innerHTML = '';
+      $('tts-stats').appendChild(make('span', 'voice-now', String.fromCharCode(65 + ((i - 1) % picked.length)) + ' — ' + v.name));
+      say(v, text).then(function () { abTimer = setTimeout(next, 350); });
+    })();
   }
 
   // ---------------------------------------------------------------- 3. VAD
@@ -416,7 +507,16 @@
 
   $('sr-start').addEventListener('click', startSR);
   $('sr-stop').addEventListener('click', function () { if (rec) rec.stop(); });
-  $('tts-speak').addEventListener('click', speak);
+  PHRASES.forEach(function (p) {
+    var o = document.createElement('option'); o.value = p; o.textContent = p;
+    $('tts-phrase').appendChild(o);
+  });
+  $('tts-speak').addEventListener('click', speakOne);
+  $('tts-all').addEventListener('click', playAll);
+  $('tts-star').addEventListener('click', starCurrent);
+  $('tts-ab').addEventListener('click', abCompare);
+  $('tts-stop').addEventListener('click', stopSpeaking);
+  $('tts-en-only').addEventListener('change', fillVoices);
   $('vad-start').addEventListener('click', startVad);
   $('vad-stop').addEventListener('click', function () {
     App.Vad.stop();

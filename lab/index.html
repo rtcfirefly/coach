@@ -83,12 +83,26 @@
 </section>
 
 <section class="card">
-  <h2>2 · Speech synthesis <span class="tag free">no download</span></h2>
+  <h2>2 · Voice bench <span class="tag free">no download</span></h2>
+  <p class="hint">Coach lines, not lorem ipsum — how a voice handles "one thirty five" and
+    "Romanian deadlift" is what matters, and TTS engines differ most on numbers and proper nouns.
+    Play the same line through every installed voice, then shortlist and A/B the survivors.</p>
+
+  <div class="row">
+    <select id="tts-phrase"></select>
+  </div>
   <div class="row">
     <select id="tts-voice"></select>
     <button id="tts-speak" class="primary">Speak</button>
+    <button id="tts-star">☆ Shortlist</button>
   </div>
-  <input id="tts-text" type="text" value="Nice work. Three sets of ten at one thirty five — rest ninety seconds." />
+  <div class="row">
+    <button id="tts-all">▶ Play all voices</button>
+    <button id="tts-ab" disabled>A/B shortlist</button>
+    <button id="tts-stop">Stop</button>
+    <label class="chk"><input type="checkbox" id="tts-en-only" checked /> English only</label>
+  </div>
+  <div id="tts-shortlist" class="shortlist"></div>
   <div id="tts-stats" class="stats"></div>
 </section>
 

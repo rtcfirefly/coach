@@ -40,3 +40,8 @@ select,input[type=text]{background:var(--bg);color:var(--tx);border:1px solid va
 pre{background:var(--bg);border:1px solid var(--bd);border-radius:9px;padding:10px;
   font-size:11px;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
 code{font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.shortlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.shortlist .chip{background:var(--bd);border-radius:999px;padding:4px 10px;font-size:12px;
+  display:flex;align-items:center;gap:6px}
+.shortlist .chip button{background:none;border:0;color:var(--mut);padding:0 2px;min-height:0;cursor:pointer}
+.voice-now{color:var(--ac);font-weight:600}
