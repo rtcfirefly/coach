@@ -315,6 +315,10 @@
 
   function loadPiper() {
     $('np-load').disabled = true;
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+      npStatus('note: cache worker not active yet — reload the page first, or the ' +
+               'voice will be downloaded a second time by the engine');
+    }
     return registry().then(function (jsreg) {
       return loadOrt(jsreg);
     }).then(function (ort) {
@@ -816,6 +820,21 @@
     if (navigator.clipboard) navigator.clipboard.writeText(t);
   });
 
+  /* Register the worker that serves the verified cache to engine-initiated
+     fetches. Without it, piper-plus re-downloads what we just verified. */
+  var swReady = false;
+  function registerSW() {
+    if (!('serviceWorker' in navigator)) return Promise.resolve(false);
+    return navigator.serviceWorker.register('sw.js', { scope: './' })
+      .then(function () { return navigator.serviceWorker.ready; })
+      .then(function () {
+        // controller is null on the very first load until the worker claims us.
+        swReady = !!navigator.serviceWorker.controller;
+        return swReady;
+      })
+      .catch(function () { return false; });
+  }
+
   function refreshUsage() {
     storageLine().then(function (l) {
       $('cache-usage').textContent = l ? 'browser storage: ' + l : 'storage estimate unavailable';
@@ -830,6 +849,13 @@
     });
   });
   refreshUsage();
+  registerSW().then(function (ok) {
+    var el = $('cache-usage');
+    if (!ok) {
+      el.textContent = (el.textContent ? el.textContent + ' · ' : '') +
+        'cache worker not active — reload once so engine downloads reuse the verified cache';
+    }
+  });
 
   fetch('registry.json').then(function (r) { return r.json(); })
     .then(renderRegistry)
