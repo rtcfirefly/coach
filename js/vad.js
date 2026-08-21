@@ -21,6 +21,11 @@
   'use strict';
   window.App = window.App || {};
 
+  // Resolve the worklet against THIS script's URL, not the document's. A page in
+  // a subdirectory (lab/) would otherwise ask for lab/js/vad-processor.js.
+  var HERE = (document.currentScript && document.currentScript.src) || '';
+  var WORKLET = HERE ? HERE.replace(/[^/]*$/, 'vad-processor.js') : 'js/vad-processor.js';
+
   var ctx = null, stream = null, node = null, src = null;
   var running = false, speaking = false;
   var cbs = {};
@@ -94,7 +99,7 @@
       stream = s;
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       if (!ctx.audioWorklet) throw new Error('no audioWorklet');
-      return ctx.audioWorklet.addModule('js/vad-processor.js');
+      return ctx.audioWorklet.addModule(WORKLET);
     }).then(function () {
       src = ctx.createMediaStreamSource(stream);
       node = new AudioWorkletNode(ctx, 'vad-processor');
