@@ -684,7 +684,12 @@ export class PiperPlus {
       let jsAdapter = null;
       if (needsJsAdapter) {
         jsAdapter = await JsG2pAdapter.create(
-          jsLanguages,  // undefined when no language_id_map
+          // PATCHED (see lab/vendor/PATCHES.md). Upstream passes jsLanguages
+          // through unchanged, and it is undefined for any voice whose config
+          // has no language_id_map — which is every single-language Piper voice.
+          // G2P.create() then initialises ALL nine languages, and JapaneseG2P
+          // throws without an openjtalkModule, so initialize() never resolves.
+          jsLanguages ?? ['en'],
           this._config.phoneme_id_map,
         );
         if (jsLanguages) {
