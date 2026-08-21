@@ -21,8 +21,13 @@
 # Local review notes and screenshots — kept on disk, not published
 reviews/
 
-# Vendored third-party blobs. The pin (lab/vendor/vendor.hash) IS committed;
-# the artifacts are fetched and verified by lab/fetch-vendor.sh. See the note
-# in that script for why they are not in the repo.
-lab/vendor/*
-!lab/vendor/vendor.hash
+# Vendored third-party code. Readable ES source IS committed — it can be
+# reviewed, and reviewing it is the point of vendoring. Only the opaque
+# artifacts are excluded: minified bundles and prebuilt .wasm, which cannot be
+# audited and which trip GitHub secret scanning on an embedded gist URL.
+# Their pins live in lab/vendor/vendor.hash; lab/fetch-vendor.sh restores them.
+lab/vendor/transformers.web.min.js
+lab/vendor/ort.wasm.min.mjs
+lab/vendor/ort-wasm-simd-threaded.mjs
+lab/vendor/ort-wasm-simd-threaded.jsep.mjs
+lab/vendor/*.wasm
