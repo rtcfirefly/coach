@@ -100,6 +100,72 @@
         }
       ],
       "totalBytes": 63206176
+    },
+    "piper-ryan-high": {
+      "kind": "TTS",
+      "label": "Piper ryan-high (male)",
+      "licence": "MIT (voice: CC-BY-4.0)",
+      "repo": "rhasspy/piper-voices",
+      "engine": "piper-plus",
+      "files": [
+        {
+          "path": "en_US-ryan-high.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/high/en_US-ryan-high.onnx",
+          "sha256": "b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca",
+          "bytes": 120786792
+        },
+        {
+          "path": "en_US-ryan-high.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/high/en_US-ryan-high.onnx.json",
+          "sha256": "c6d3b98f08315cb4bebf0d49d50fc4ff491b503c64b940cd3d5ca28543b48011",
+          "bytes": 4166
+        }
+      ],
+      "totalBytes": 120790958
+    },
+    "piper-lessac-high": {
+      "kind": "TTS",
+      "label": "Piper lessac-high (female)",
+      "licence": "MIT (voice: CC-BY-4.0)",
+      "repo": "rhasspy/piper-voices",
+      "engine": "piper-plus",
+      "files": [
+        {
+          "path": "en_US-lessac-high.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx",
+          "sha256": "4cabf7c3a638017137f34a1516522032d4fe3f38228a843cc9b764ddcbcd9e09",
+          "bytes": 113895201
+        },
+        {
+          "path": "en_US-lessac-high.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json",
+          "sha256": "db42b97d9859f257bc1561b8ed980e7fb2398402050a74ddd6cbec931a92412f",
+          "bytes": 4883
+        }
+      ],
+      "totalBytes": 113900084
+    },
+    "piper-hfc-medium": {
+      "kind": "TTS",
+      "label": "Piper hfc_female-medium",
+      "licence": "MIT (voice: CC-BY-4.0)",
+      "repo": "rhasspy/piper-voices",
+      "engine": "piper-plus",
+      "files": [
+        {
+          "path": "en_US-hfc_female-medium.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+          "sha256": "914c473788fc1fa8b63ace1cdcdb44588f4ae523d3ab37df1536616835a140b7",
+          "bytes": 63201294
+        },
+        {
+          "path": "en_US-hfc_female-medium.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json",
+          "sha256": "03f1fa0622b80463283592d97aca9f6e89aec345a5c56b7257723e0093c58b6c",
+          "bytes": 5033
+        }
+      ],
+      "totalBytes": 63206327
     }
   }
 }

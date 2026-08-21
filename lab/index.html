@@ -112,6 +112,9 @@
     you can A/B it against the system voices above. Both are SHA-256 verified against
     <code>registry.json</code> before use and cached, so this is a one-time cost.</p>
   <div class="row">
+    <select id="np-voice"></select>
+  </div>
+  <div class="row">
     <button id="np-load" class="primary">Load engine + voice</button>
     <button id="np-speak" disabled>Speak</button>
     <button id="np-stop" disabled>Stop</button>
@@ -153,6 +156,6 @@
 
 <script src="../js/vad.js?v=18"></script>
 <script src="engines.js?v=3"></script>
-<script src="lab.js?v=9"></script>
+<script src="lab.js?v=10"></script>
 </body>
 </html>

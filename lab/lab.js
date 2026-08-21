@@ -325,7 +325,7 @@
       // Verify the pinned voice before piper-plus is told to load it. See the
       // note below about what this does and does not guarantee.
       return fetch('registry.json').then(function (r) { return r.json(); }).then(function (mreg) {
-        var asset = mreg.assets['piper-amy-medium'];
+        var asset = mreg.assets[$('np-voice').value] || mreg.assets['piper-amy-medium'];
         var i = 0;
         return (function next() {
           if (i >= asset.files.length) return asset;
@@ -831,6 +831,15 @@
   $('tts-stop').addEventListener('click', stopSpeaking);
   $('tts-en-only').addEventListener('change', fillVoices);
   $('np-load').addEventListener('click', loadPiper);
+  $('np-voice').addEventListener('change', function () {
+    // A new voice needs a fresh PiperPlus — the session is bound to one model.
+    if (piper && piper.dispose) { try { piper.dispose(); } catch (e) {} }
+    piper = null;
+    $('np-speak').disabled = true;
+    $('np-load').disabled = false;
+    $('np-load').textContent = 'Load engine + voice';
+    npStatus('voice changed — load it');
+  });
   $('np-speak').addEventListener('click', npSpeak);
   $('np-stop').addEventListener('click', function () {
     if (piperSrc) { try { piperSrc.stop(); } catch (e) {} piperSrc = null; }
@@ -887,6 +896,22 @@
   });
 
   fetch('registry.json').then(function (r) { return r.json(); })
+    .then(function (reg) {
+      // Voice picker: every piper-* asset, cheapest first, so the size cost of
+      // the high tier is visible before committing to the download.
+      var sel = $('np-voice');
+      Object.keys(reg.assets)
+        .filter(function (k) { return reg.assets[k].engine === 'piper-plus'; })
+        .sort(function (a, b) { return reg.assets[a].totalBytes - reg.assets[b].totalBytes; })
+        .forEach(function (k) {
+          var a = reg.assets[k];
+          var o = document.createElement('option');
+          o.value = k;
+          o.textContent = a.label + ' — ' + (a.totalBytes / 1e6).toFixed(0) + ' MB';
+          sel.appendChild(o);
+        });
+      return reg;
+    })
     .then(renderRegistry)
     .catch(function (e) { $('registry').textContent = 'registry.json failed to load: ' + e.message; });
 })();
