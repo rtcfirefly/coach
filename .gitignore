@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+._*
+
+# Editor / OS cruft
+*.swp
+*~
+.idea/
+.vscode/
+
+# Never commit credentials — the app is BYOK and keys live in the browser's
+# localStorage, so nothing key-shaped belongs in this tree.
+*.pem
+*.key
+.env
+.env.*
+
+# Claude Code local session settings (personal, not shared)
+.claude/settings.local.json
+
+# Local review notes and screenshots — kept on disk, not published
+reviews/
