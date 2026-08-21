@@ -94,20 +94,40 @@
 
     var finalText = '';
     var emitted = 0;   // result slots already handed to onFinal
+
+    // Engines disagree about what a "final" result contains. Chrome on Android
+    // emits CUMULATIVE finals at successive indices — "I", "I did", "I did 20" —
+    // so taking each new index verbatim replays the whole utterance and, in a
+    // call, fires one LLM turn per word. Others emit only the new fragment.
+    // Return the part of `next` that is not already in `acc`, which is correct
+    // under either convention.
+    function tail(acc, next) {
+      var a = acc.trim(), n = next.trim();
+      if (!a) return n;
+      if (!n) return '';
+      var la = a.toLowerCase(), ln = n.toLowerCase();
+      if (ln.indexOf(la) === 0) return n.slice(a.length).trim();   // cumulative growth
+      if (la.indexOf(ln) === 0) return '';                          // repeat of what we have
+      if (la.slice(-ln.length) === ln) return '';                   // trailing repeat
+      return n;                                                     // genuinely new fragment
+    }
+
     rec.onstart = function () { finalText = ''; emitted = 0; if (cb.onStart) cb.onStart(); };
     rec.onresult = function (e) {
       var interim = '', fresh = '';
       for (var i = 0; i < e.results.length; i++) {
         var r = e.results[i];
         if (r.isFinal) {
-          // Only segments not yet delivered. This previously rebuilt the whole
-          // transcript on every event, so appending callers duplicated words.
-          if (i >= emitted) { fresh += r[0].transcript; emitted = i + 1; }
+          if (i >= emitted) {
+            var add = tail(finalText + fresh, r[0].transcript);
+            if (add) fresh += (fresh ? ' ' : '') + add;
+            emitted = i + 1;
+          }
         } else {
           interim += r[0].transcript;
         }
       }
-      if (fresh) finalText += fresh;
+      if (fresh) finalText += (finalText ? ' ' : '') + fresh;
       if (interim && cb.onInterim) cb.onInterim(interim);
       if (fresh && cb.onFinal) cb.onFinal(fresh.trim());
     };

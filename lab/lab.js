@@ -310,11 +310,29 @@
     werRec.lang = 'en-US'; werRec.interimResults = true; werRec.continuous = true; werRec.maxAlternatives = 1;
     werT0 = performance.now(); werFirst = 0;
     var heard = '', emitted = 0;
+    // Chrome on Android emits CUMULATIVE finals, so appending each new index
+    // replays the utterance. Keep only the part not already accumulated.
+    function tail(acc, next) {
+      var a = acc.trim(), n = next.trim();
+      if (!a) return n;
+      if (!n) return '';
+      var la = a.toLowerCase(), ln = n.toLowerCase();
+      if (ln.indexOf(la) === 0) return n.slice(a.length).trim();
+      if (la.indexOf(ln) === 0) return '';
+      if (la.slice(-ln.length) === ln) return '';
+      return n;
+    }
     werRec.onresult = function (e) {
       var interim = '', fresh = '';
       for (var i = 0; i < e.results.length; i++) {
         var r = e.results[i];
-        if (r.isFinal) { if (i >= emitted) { fresh += r[0].transcript; emitted = i + 1; } }
+        if (r.isFinal) {
+          if (i >= emitted) {
+            var add = tail(heard + (fresh ? ' ' + fresh : ''), r[0].transcript);
+            if (add) fresh += (fresh ? ' ' : '') + add;
+            emitted = i + 1;
+          }
+        }
         else interim += r[0].transcript;
       }
       if (!werFirst && (interim || fresh)) werFirst = performance.now() - werT0;

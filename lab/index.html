@@ -14,10 +14,10 @@
      WebAssembly.instantiate. Every byte that executes as JS is same-origin,
      vendored under lab/vendor/ with a committed hash. -->
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'" />
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Speech Lab — Fitness Coach</title>
-<link rel="stylesheet" href="lab.css" />
+<link rel="stylesheet" href="lab.css?v=2" />
 </head>
 <body>
 <header>
@@ -134,8 +134,8 @@
   <pre id="results">no runs yet</pre>
 </section>
 
-<script src="../js/vad.js"></script>
-<script src="engines.js"></script>
-<script src="lab.js"></script>
+<script src="../js/vad.js?v=18"></script>
+<script src="engines.js?v=2"></script>
+<script src="lab.js?v=2"></script>
 </body>
 </html>
