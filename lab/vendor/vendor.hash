@@ -1,0 +1,4 @@
+0a96dcf4c48981b7d05f53827e6975ec239132606ad0d526bbc2db0fcdbc4ded  transformers.web.min.js
+9608e98a3fba9716f0cbd0bca0c94808b71dae2e9265ca3fe742ddc393a53ebc  ort.wasm.min.mjs
+522b3769929f5684c83a12cf1e06eedf073b65d161728b4f3757c75d62b14384  ort-wasm-simd-threaded.jsep.mjs
+0a1e718d99c41b22c21f2520ff4f9e883a6b5533856e398d21816ee8eb8185d3  ort-wasm-simd-threaded.mjs

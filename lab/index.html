@@ -7,10 +7,14 @@
      This page needs:
        wasm-unsafe-eval  - WebAssembly.instantiate is refused under script-src 'self'
        connect-src HF    - model weights, fetched only after explicit consent
-     No CDN is listed for scripts: every byte that EXECUTES is same-origin or is
-     hash-verified before it runs. -->
+       connect-src CDN   - the ORT .wasm binary, likewise consent-gated
+     Note the asymmetry: jsdelivr and huggingface appear in connect-src but NOT
+     in script-src. Nothing from either origin is ever loaded as a script. They
+     are fetched as data, SHA-256 verified, and only then handed to
+     WebAssembly.instantiate. Every byte that executes as JS is same-origin,
+     vendored under lab/vendor/ with a committed hash. -->
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co; base-uri 'none'; form-action 'none'" />
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Speech Lab — Fitness Coach</title>
 <link rel="stylesheet" href="lab.css" />
@@ -117,6 +121,7 @@
 </section>
 
 <script src="../js/vad.js"></script>
+<script src="engines.js"></script>
 <script src="lab.js"></script>
 </body>
 </html>

@@ -20,3 +20,9 @@
 
 # Local review notes and screenshots — kept on disk, not published
 reviews/
+
+# Vendored third-party blobs. The pin (lab/vendor/vendor.hash) IS committed;
+# the artifacts are fetched and verified by lab/fetch-vendor.sh. See the note
+# in that script for why they are not in the repo.
+lab/vendor/*
+!lab/vendor/vendor.hash
