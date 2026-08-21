@@ -339,13 +339,16 @@ fieldset.field legend { padding: 0 6px; font-size: 13px; color: var(--muted); fo
 }
 .timer-chip { background: var(--surface-2); border: 1px solid var(--border); color: var(--accent-press); }
 
+/* Set by the modals; without a rule the page scrolled behind open sheets. */
+body.modal-open { overflow: hidden; touch-action: none; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: calc(84px + var(--safe-bottom));
   transform: translate(-50%, 20px); max-width: 92%;
   background: #0f172a; color: #fff; padding: 12px 17px; border-radius: 13px;
   font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.3);
-  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 120; text-align: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 140; text-align: center;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.success { background: var(--accent-press); }

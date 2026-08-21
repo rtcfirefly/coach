@@ -77,29 +77,39 @@
   // Force a fresh enumeration (e.g. when the Settings screen opens).
   function refreshVoices() { try { synth && synth.getVoices(); } catch (e) {} notifyVoices(); }
 
-  /* One-shot recognizer. Auto-ends on silence; we restart it for continuous call flow.
+  /* Recognizer. With opts.continuous the mic stays open across utterances, so there
+   * is no teardown/restart gap where speech is lost; otherwise it auto-ends on silence.
+   * onFinal fires once per NEWLY finalised segment — never the running total — so
+   * callers can append its argument safely.
    * cb: { onStart, onInterim(text), onFinal(text), onError(code), onEnd(finalText) } */
-  function create(cb) {
+  function create(cb, opts) {
     cb = cb || {};
+    opts = opts || {};
     if (!SR) return null;
     var rec = new SR();
     rec.lang = (App.Store ? App.Store.getLang() : 'en-US');
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = !!opts.continuous;
     rec.maxAlternatives = 1;
 
     var finalText = '';
-    rec.onstart = function () { finalText = ''; if (cb.onStart) cb.onStart(); };
+    var emitted = 0;   // result slots already handed to onFinal
+    rec.onstart = function () { finalText = ''; emitted = 0; if (cb.onStart) cb.onStart(); };
     rec.onresult = function (e) {
-      var interim = '';
-      finalText = '';
+      var interim = '', fresh = '';
       for (var i = 0; i < e.results.length; i++) {
         var r = e.results[i];
-        if (r.isFinal) finalText += r[0].transcript;
-        else interim += r[0].transcript;
+        if (r.isFinal) {
+          // Only segments not yet delivered. This previously rebuilt the whole
+          // transcript on every event, so appending callers duplicated words.
+          if (i >= emitted) { fresh += r[0].transcript; emitted = i + 1; }
+        } else {
+          interim += r[0].transcript;
+        }
       }
+      if (fresh) finalText += fresh;
       if (interim && cb.onInterim) cb.onInterim(interim);
-      if (finalText && cb.onFinal) cb.onFinal(finalText.trim());
+      if (fresh && cb.onFinal) cb.onFinal(fresh.trim());
     };
     rec.onerror = function (e) { if (cb.onError) cb.onError((e && e.error) || 'speech_error'); };
     rec.onend = function () { if (cb.onEnd) cb.onEnd(finalText.trim()); };

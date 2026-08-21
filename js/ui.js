@@ -239,7 +239,7 @@
     el.tabs.forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-screen') === name);
     });
-    el.title.textContent = { coach: 'Coach', history: 'History', exercises: 'Exercises', settings: 'Settings' }[name] || 'Coach';
+    el.title.textContent = { coach: 'Coach', history: 'History', exercises: 'Exercises', sessions: 'Sessions', settings: 'Settings' }[name] || 'Coach';
     el.topActions.hidden = name !== 'coach';
     if (name === 'history') refreshHistory();
     if (name === 'exercises') refreshExercises();
@@ -279,8 +279,10 @@
   // ---------------------------------------------------------------- chat render
   function scrollChatToBottom() { if (el.chat) el.chat.scrollTop = el.chat.scrollHeight; }
 
-  function addUserMessage(text) {
+  function addUserMessage(text, ordinal) {
     var row = make('div', 'msg user');
+    if (ordinal == null) row.setAttribute('data-pending', '1');
+    else row.setAttribute('data-msg-ordinal', String(ordinal));
     row.appendChild(make('div', 'bubble', text));
     var edit = make('button', 'msg-edit', '✎');
     edit.type = 'button';
@@ -290,14 +292,36 @@
     row.appendChild(edit);
     el.chat.appendChild(row);
     scrollChatToBottom();
+    return row;
+  }
+
+  // A turn that failed (or was aborted by barge-in) is rolled back out of stored
+  // history by api.js, but we had already painted it. Drop the optimistic DOM so
+  // the chat and the store agree — otherwise every later edit targets the wrong
+  // message, because the ordinals silently diverge by one per failed turn.
+  function dropPendingTurn() {
+    finishAssistant();
+    var pend = el.chat.querySelectorAll('.msg.user[data-pending]');
+    for (var i = pend.length - 1; i >= 0; i--) {
+      var row = pend[i];
+      // anything rendered after the dropped user message went with it
+      while (row.nextSibling) el.chat.removeChild(row.nextSibling);
+      el.chat.removeChild(row);
+    }
+    scrollChatToBottom();
   }
 
   // Edit a previously-sent message: drop it and everything after, refill composer.
   function startEditMessage(row) {
     if (App.Call && App.Call.isActive()) { toast('Can’t edit during a call.', 'info'); return; }
-    var users = Array.prototype.slice.call(el.chat.querySelectorAll('.msg.user'));
-    var ordinal = users.indexOf(row);
-    if (ordinal < 0) return;
+    // Counting .msg.user nodes was wrong: the DOM keeps messages that rollback()
+    // removed from the store, so the Nth bubble is not the Nth stored message.
+    if (row.hasAttribute('data-pending')) {
+      toast('That message isn’t saved yet — wait for the reply to finish.', 'info');
+      return;
+    }
+    var ordinal = parseInt(row.getAttribute('data-msg-ordinal'), 10);
+    if (isNaN(ordinal)) return;
     if (handlers.onEditMessage) handlers.onEditMessage(ordinal);
   }
 
@@ -382,9 +406,10 @@
       el.chat.appendChild(hello);
       return;
     }
+    var userOrdinal = 0;
     session.messages.forEach(function (m) {
       if (m.role === 'user') {
-        if (typeof m.content === 'string') addUserMessage(m.content);
+        if (typeof m.content === 'string') addUserMessage(m.content, userOrdinal++);
         return;
       }
       if (m.role === 'assistant' && Array.isArray(m.content)) {
@@ -1000,7 +1025,7 @@
   }
 
   // ---------------------------------------------------------------- timer
-  var timer = { iv: null, remaining: 0, total: 0, label: '', running: false };
+  var timer = { iv: null, remaining: 0, total: 0, label: '', running: false, endAt: 0 };
   var audioCtx = null;
   function beep() {
     try {
@@ -1028,8 +1053,11 @@
     el.timerToggle.textContent = timer.running ? 'Pause' : 'Resume';
   }
   function clearTimerIv() { if (timer.iv) { clearInterval(timer.iv); timer.iv = null; } }
+  // Wall-clock, not tick-counting. setInterval is throttled hard in a background
+  // tab and stops entirely on screen lock, so counting ticks made the timer wrong
+  // by however long the phone was asleep — the one thing a rest timer must not do.
   function tickTimer() {
-    timer.remaining--;
+    timer.remaining = Math.ceil((timer.endAt - Date.now()) / 1000);
     if (timer.remaining <= 0) { finishTimer(); return; }
     renderTimer();
   }
@@ -1037,6 +1065,7 @@
     seconds = Math.max(1, Math.round(seconds || 0));
     clearTimerIv();
     timer.total = seconds; timer.remaining = seconds; timer.label = label || 'Timer'; timer.running = true;
+    timer.endAt = Date.now() + seconds * 1000;
     el.timerWidget.classList.remove('done');
     el.timerWidget.hidden = false;
     renderTimer();
@@ -1063,7 +1092,8 @@
     if (timer.remaining <= 0) return;
     timer.running = !timer.running;
     clearTimerIv();
-    if (timer.running) timer.iv = setInterval(tickTimer, 1000);
+    // Resuming restarts the deadline from whatever is left on the clock.
+    if (timer.running) { timer.endAt = Date.now() + timer.remaining * 1000; timer.iv = setInterval(tickTimer, 1000); }
     renderTimer();
   }
   function stopTimer() {
@@ -1168,6 +1198,7 @@
     showScreen: showScreen,
     renderSession: renderSession,
     addUserMessage: addUserMessage,
+    dropPendingTurn: dropPendingTurn,
     showTyping: showTyping,
     hideTyping: hideTyping,
     appendAssistantDelta: appendAssistantDelta,

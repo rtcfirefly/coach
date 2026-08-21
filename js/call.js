@@ -12,6 +12,7 @@
   var ttsBuf = '', coachText = '';
   var coachWords = {}, coachWordCount = 0;
   var rec = null, restartTimer = null, lastFinal = '';
+  var micGen = 0;          // supersedes stale recognizers so their callbacks go inert
   var lastSpeakEnd = 0;
   var timerInt = null, startTs = 0;
   var interrupted = false, queuedUtterance = null;
@@ -61,8 +62,19 @@
     tw.forEach(function (w) { if (coachWords[w]) hits++; });
     return (hits / tw.length) >= 0.6;
   }
+  // Short answers are the most common thing said on a coaching call, and the old
+  // "4+ chars or 2+ words" rule silently threw away every one of them ("yes", "no",
+  // "ok", "done"). Allow-list them explicitly.
+  var SHORT_OK = {
+    yes: 1, yeah: 1, yep: 1, yup: 1, ya: 1, sure: 1, ok: 1, okay: 1, k: 1,
+    no: 1, nope: 1, nah: 1, not: 1, stop: 1, wait: 1, hold: 1,
+    done: 1, next: 1, skip: 1, again: 1, more: 1, less: 1, go: 1, ready: 1,
+    hi: 1, hey: 1, what: 1, huh: 1, why: 1, how: 1
+  };
   function isMeaningful(text) {
     var t = (text || '').trim();
+    if (!t) return false;
+    if (SHORT_OK[t.toLowerCase().replace(/[^a-z]/g, '')]) return true;
     return t.length >= 4 || words(t).length >= 2;
   }
 
@@ -84,13 +96,17 @@
     text = cleanForSpeech(text || '');
     if (!text) return;
     var g = gen;
+    if (pending === 0 && App.Vad) App.Vad.setSensitivity(5.0, 2.5);
     pending++;
     Sp().speak(text, {
       onstart: function () { if (g === gen) refreshState(); },
       onend: function () {
         if (g !== gen) return;
         pending = Math.max(0, pending - 1);
-        if (pending === 0) lastSpeakEnd = Date.now();
+        if (pending === 0) {
+          lastSpeakEnd = Date.now();
+          if (App.Vad) App.Vad.setSensitivity(3.5, 2.0);   // back to normal
+        }
         refreshState();
       }
     });
@@ -130,6 +146,7 @@
     interrupted = true;   // suppress the rest of the current reply's speech
     if (turnAbort) { try { turnAbort.abort(); } catch (e) {} }  // stop the LLM generation too
     Sp().cancelSpeech();
+    lastSpeakEnd = Date.now();   // audio stopped now; keep the echo guard armed
     U().hideTyping();
     U().finishAssistant();   // seal any partial coach bubble in the chat
     refreshState();
@@ -139,23 +156,44 @@
   function startMic() {
     if (!active || muted || document.hidden) return;   // mic can't run while backgrounded
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-    rec = Sp().create({
-      onStart: function () { refreshState(); },
+
+    // Supersede any previous recognizer. Without this, a stale instance whose
+    // onend had not yet fired would still push a turn AND re-arm the restart
+    // timer, so two or three could end up live at once and the mic stayed hot
+    // after hang-up. Every callback below is gated on its own generation.
+    var myMic = ++micGen;
+    if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
+
+    var r = Sp().create({
+      onStart: function () { if (myMic === micGen) refreshState(); },
       onInterim: function (t) {
+        if (myMic !== micGen) return;
         U().setUserCaption(t);
         if (pending > 0 && isMeaningful(t) && !isEcho(t)) bargeIn(); // interrupt the coach
       },
-      onFinal: function (t) { lastFinal = t; },
-      onError: onRecError,
-      onEnd: function (finalText) {
-        var t = (finalText || lastFinal || '').trim();
+      // continuous: each finalised segment is a turn, dispatched as it lands
+      // rather than waiting for the recognizer to end.
+      onFinal: function (t) {
+        if (myMic !== micGen) return;
         lastFinal = '';
-        handleFinal(t);
-        if (active && !muted && !document.hidden) restartTimer = setTimeout(startMic, 300); // keep the mic open
+        handleFinal((t || '').trim());
+      },
+      onError: function (code) { if (myMic === micGen) onRecError(code); },
+      onEnd: function () {
+        if (myMic !== micGen) return;      // superseded — stay inert
+        rec = null;
+        // No text handling here: onFinal already dispatched every finalised
+        // segment, and speech.js's onEnd argument is the running total for the
+        // whole session — acting on it would replay the entire call. Some
+        // engines (notably Android Chrome) still end on silence despite
+        // continuous, so the only job left is getting the mic back up.
+        if (active && !muted && !document.hidden) restartTimer = setTimeout(startMic, 300);
       }
-    });
-    if (!rec) return;
-    try { rec.start(); } catch (e) { /* already running */ }
+    }, { continuous: true });
+
+    if (!r) return;
+    rec = r;
+    try { r.start(); } catch (e) { /* already running */ }
   }
 
   function onRecError(code) {
@@ -227,6 +265,25 @@
     return true;
   }
 
+  // ----- acoustic barge-in -------------------------------------------------
+  // The transcript path (onInterim -> isMeaningful -> isEcho) can only react
+  // once the recognizer has produced words, which is far too slow to feel like
+  // an interruption. VAD reacts to energy, so we cut the coach off as soon as
+  // the user actually starts talking. Purely additive: if VAD is unavailable
+  // the transcript path still runs exactly as before.
+  var vadOn = false;
+  function startVad() {
+    if (!App.Vad) return;
+    App.Vad.start({
+      onSpeechStart: function () {
+        if (!active || muted) return;
+        // Only meaningful as an interruption while the coach holds the floor.
+        if (pending > 0) bargeIn();
+      }
+    }).then(function (ok) { vadOn = !!ok; });
+  }
+  function stopVad() { vadOn = false; if (App.Vad) App.Vad.stop(); }
+
   // ----- controls ---------------------------------------------------------
   function start() {
     if (active) return;
@@ -248,6 +305,7 @@
     startTimer();
     requestWakeLock();   // keep the screen awake so the call isn't killed by auto-lock
     startMic();
+    startVad();
     say('Hey, coach here. What did you train today?');
   }
 
@@ -257,7 +315,8 @@
     U().setCallMuted(muted);
     if (muted) {
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-      if (rec) { try { rec.stop(); } catch (e) {} }
+      micGen++;   // discard anything this recognizer still reports
+      if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     } else {
       startMic();
     }
@@ -269,8 +328,10 @@
     gen++;            // supersede any in-flight turn so its callbacks go inert
     if (turnAbort) { try { turnAbort.abort(); } catch (e) {} turnAbort = null; }
     if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-    if (rec) { try { rec.stop(); } catch (e) {} rec = null; }
+    micGen++;
+    if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     Sp().cancelSpeech();
+    stopVad();
     pending = 0;
     stopTimer();
     releaseWakeLock();
@@ -306,7 +367,8 @@
       // Backgrounded: the OS suspends the recognizer anyway. Stop our restart
       // loop so it doesn't error-spam, but keep the call "active".
       if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
-      if (rec) { try { rec.stop(); } catch (e) {} }
+      micGen++;
+      if (rec) { try { rec.abort(); } catch (e) {} rec = null; }
     } else {
       requestWakeLock();          // wake locks are auto-released on hide — re-acquire
       if (!muted) startMic();     // resume listening

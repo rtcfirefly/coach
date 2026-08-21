@@ -118,19 +118,33 @@
     getWorkoutsBySession: function (sessionId) {
       return this.getWorkouts().filter(function (w) { return w.sessionId === sessionId; });
     },
-    addWorkout: function (input, sessionId, timestamp) {
+    // sourceId is the tool_use id that produced this entry. Replaying the same
+    // tool call — a retried round, or a realtime platform that re-sends a call it
+    // could not confirm — returns the original entry instead of logging twice.
+    // rollback() cannot undo a write that already happened, so the write has to
+    // be the thing that refuses to happen twice.
+    addWorkout: function (input, sessionId, timestamp, sourceId) {
       input = input || {};
+      var all = this.getWorkouts();
+      if (sourceId) {
+        var dup = all.filter(function (w) { return w.sourceId === sourceId; })[0];
+        if (dup) return dup;
+      }
       var entry = {
         id: uid(),
+        sourceId: sourceId || null,
         timestamp: timestamp || new Date().toISOString(),
         sessionId: sessionId || null,
         routine: (input.session || input.routine || '') || null,  // which session/template this was
         exercises: Array.isArray(input.exercises) ? input.exercises : [],
         notes: input.notes || ''
       };
-      var all = this.getWorkouts();
       all.push(entry);
-      writeJSON(K.workouts, all);
+      if (!writeJSON(K.workouts, all)) {
+        // Silently dropping this is how "✓ Logged" gets shown for a workout that
+        // was never persisted. Let the caller report the failure instead.
+        throw new Error('Storage is full — the workout could not be saved.');
+      }
       return entry;
     },
     deleteWorkout: function (id) {

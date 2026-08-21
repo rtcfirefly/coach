@@ -26,7 +26,9 @@
       onSession: function (name) { UI.addSessionChip(name); UI.refreshSessions(); },
       onTimer: function (secs, label) { UI.startTimer(secs, label); }
     }).catch(function (err) {
-      UI.finishAssistant();
+      // runTurn rolled this turn out of stored history; drop the optimistic DOM
+      // too, or the chat shows a message the coach has no record of.
+      UI.dropPendingTurn();
       UI.toast(err && err.message ? err.message : 'Something went wrong.', 'error');
       if (err && err.code === 'no_key') UI.showScreen('settings');
     }).then(function () {

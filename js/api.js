@@ -10,6 +10,8 @@
   var API_URL = 'https://api.anthropic.com/v1/messages';
   var API_VERSION = '2023-06-01';
   var MAX_TOOL_ROUNDS = 6;
+  var EFFORT_OK = /(sonnet-4-6|sonnet-5|opus-4-6|opus-4-7|opus-4-8|opus-5|fable-5)/;
+  function supportsEffort(model) { return EFFORT_OK.test(String(model || '')); }
 
   function ApiError(code, message) {
     this.name = 'ApiError';
@@ -217,6 +219,8 @@
       'you changed. When logging a workout that clearly belongs to a known session, set log_workout\'s ' +
       '"session" to that session\'s exact name.';
     if (opts && opts.voice) {
+      s += '\n\nThe call already opened with you saying out loud: "Hey, coach here. What did you ' +
+        'train today?" That greeting is not in the transcript below — do not greet them again.';
       s += '\n\nVOICE CALL MODE: You are speaking out loud on a phone call. Reply in plain, natural ' +
         'spoken sentences only. Do NOT use markdown, asterisks, bullet points, numbered lists, headings, ' +
         'code formatting, or emojis. Keep replies short and conversational — the way a coach actually talks.';
@@ -236,6 +240,16 @@
     var payload = {};
     for (var k in body) if (body.hasOwnProperty(k)) payload[k] = body[k];
     payload.stream = true;
+
+    // Cache the tools+system prefix. The system prompt carries the profile, the
+    // rolling summary, up to 80 exercise names and 8 recent workouts, and was
+    // being re-billed in full on every turn; it only changes when the day rolls
+    // over or a workout is logged. Below the ~1024-token minimum the API just
+    // ignores this, so the length gate only avoids pointless breakpoints.
+    if (typeof payload.system === 'string' && payload.system.length > 3000) {
+      payload.system = [{ type: 'text', text: payload.system,
+                          cache_control: { type: 'ephemeral' } }];
+    }
 
     return fetch(API_URL, {
       method: 'POST',
@@ -364,13 +378,19 @@
       if (rounds++ >= MAX_TOOL_ROUNDS) return Promise.resolve();
       if (handlers.onRoundStart) handlers.onRoundStart();
 
-      return streamRequest({
-        model: Store.getModel(),
-        max_tokens: 1024,
+      // 1024 was undersized: log_workout JSON for a full session can exceed it,
+      // and hitting the cap mid-tool_use is exactly the failure handled below.
+      var model = Store.getModel();
+      var body = {
+        model: model,
+        max_tokens: 2048,
         system: system,
         messages: session.messages,
         tools: [LOG_WORKOUT_TOOL, UPDATE_SESSION_TOOL, START_TIMER_TOOL]
-      }, { onText: handlers.onText, signal: opts.signal }).then(function (res) {
+      };
+      if (opts.voice && supportsEffort(model)) body.output_config = { effort: 'low' };
+
+      return streamRequest(body, { onText: handlers.onText, signal: opts.signal }).then(function (res) {
         if (handlers.onRoundEnd) handlers.onRoundEnd();
 
         if (res.content.length) {
@@ -379,6 +399,15 @@
         }
 
         if (res.stopReason !== 'tool_use') {
+          // A tool_use block with no matching tool_result is a hard 400 on EVERY
+          // later request in this conversation, and completed=true would stop
+          // rollback() from cleaning it up. Reachable whenever generation stops
+          // for another reason mid-call — typically max_tokens. Fail the turn.
+          var dangling = res.content.some(function (b) { return b.type === 'tool_use'; });
+          if (dangling) {
+            throw new ApiError('truncated',
+              'The reply was cut off part-way through an action. Nothing was saved — try again.');
+          }
           completed = res.content.length > 0;   // valid only if an assistant msg was appended
           return;
         }
@@ -388,7 +417,7 @@
           if (block.type !== 'tool_use') return;
           var resultText;
           if (block.name === 'log_workout') {
-            var entry = Store.addWorkout(block.input, session.id);
+            var entry = Store.addWorkout(block.input, session.id, null, block.id);
             if (block.input && block.input.session) {
               Store.mergeRoutine(String(block.input.session).trim(),
                 (block.input.exercises || []).map(function (ex) { return ex.name; }).filter(Boolean));
