@@ -209,6 +209,11 @@
   // ----- boot --------------------------------------------------------------
   function boot() {
     Store.ensureCurrentSession();
+    // A turn interrupted by a reload leaves an unanswered user message that the
+    // model would read as context forever. Undo it before anything renders.
+    if (Store.repairSession()) {
+      setTimeout(function () { UI.toast('Recovered an interrupted message.', 'info'); }, 400);
+    }
     UI.init({
       onSend: handleSend, onFinish: handleFinish, onClearAll: handleClearAll,
       onImport: handleImport, onSuggestSessions: handleSuggestSessions,

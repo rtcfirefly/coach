@@ -9,7 +9,7 @@ let callActive=false, turnPending=null;
 global.App={
   Store:{ensureCurrentSession:()=>({id:'s',messages:[]}),getCurrentSession:()=>({id:'s',messages:[{role:'user',content:'hi'}]}),
     setCurrentSession(){},getApiKey:()=>'k',startNewSession:()=>({id:'s2',messages:[]}),archiveSession(){},clearAll(){calls.push('clearAll')},
-    getWorkouts:()=>[],getRoutines:()=>[],getSummary:()=>null},
+    getWorkouts:()=>[],getRoutines:()=>[],getSummary:()=>null,repairSession:()=>false},
   Api:{runTurn:()=>turnPending=new Promise(()=>{}), summarizeSession:()=>{calls.push('summarize');return Promise.resolve()},
        importHistory:()=>{calls.push('import');return Promise.resolve({count:0,chunks:1})},
        suggestSessions:()=>{calls.push('suggest');return Promise.resolve({sessions:0})}},

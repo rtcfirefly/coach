@@ -130,13 +130,25 @@
         var dup = all.filter(function (w) { return w.sourceId === sourceId; })[0];
         if (dup) return dup;
       }
+      var deflt = this.getUnits();
+      var exercises = (Array.isArray(input.exercises) ? input.exercises : []).map(function (ex) {
+        if (!ex || !Array.isArray(ex.sets)) return ex;
+        // Stamp the unit that was in force at log time. Without it, display fell
+        // back to the CURRENT setting, so flipping lb<->kg silently relabelled
+        // every past workout and mis-ranked bests.
+        ex.sets = ex.sets.map(function (st) {
+          if (st && st.weight != null && !st.unit) st.unit = deflt;
+          return st;
+        });
+        return ex;
+      });
       var entry = {
         id: uid(),
         sourceId: sourceId || null,
         timestamp: timestamp || new Date().toISOString(),
         sessionId: sessionId || null,
         routine: (input.session || input.routine || '') || null,  // which session/template this was
-        exercises: Array.isArray(input.exercises) ? input.exercises : [],
+        exercises: exercises,
         notes: input.notes || ''
       };
       all.push(entry);
@@ -225,6 +237,20 @@
     // --- current session ---
     getCurrentSession: function () { return readJSON(K.currentSession, null); },
     setCurrentSession: function (s) { writeJSON(K.currentSession, s); },
+    /* Undo a turn that was in flight when the page went away. api.js marks the
+       index it started at; if that marker survives a reload, the request never
+       finished and everything from there on is an unanswered user message plus
+       whatever partial assistant content landed. Returns true if it repaired. */
+    repairSession: function () {
+      var s = this.getCurrentSession();
+      if (!s || s.inFlightFrom == null || !Array.isArray(s.messages)) return false;
+      var from = s.inFlightFrom;
+      delete s.inFlightFrom;
+      if (from >= 0 && from < s.messages.length) s.messages = s.messages.slice(0, from);
+      this.setCurrentSession(s);
+      return true;
+    },
+
     ensureCurrentSession: function () {
       var s = this.getCurrentSession();
       if (!s || !s.id || !Array.isArray(s.messages)) {

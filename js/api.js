@@ -286,8 +286,14 @@
         var cb = data.content_block || {};
         if (cb.type === 'tool_use') {
           blocks[data.index] = { type: 'tool_use', id: cb.id, name: cb.name, _json: '' };
-        } else {
+        } else if (cb.type === 'text' || !cb.type) {
           blocks[data.index] = { type: 'text', text: '' };
+        } else {
+          // Preserve anything else verbatim — thinking blocks in particular must
+          // be echoed back unchanged to continue a tool-use conversation on the
+          // same model. Coercing them to text silently broke the loop.
+          blocks[data.index] = JSON.parse(JSON.stringify(cb));
+          blocks[data.index]._passthrough = true;
         }
       } else if (t === 'content_block_delta') {
         var b = blocks[data.index];
@@ -298,6 +304,10 @@
           if (opts.onText) opts.onText(d.text);
         } else if (d.type === 'input_json_delta') {
           b._json += d.partial_json;
+        } else if (d.type === 'thinking_delta') {
+          b.thinking = (b.thinking || '') + (d.thinking || '');
+        } else if (d.type === 'signature_delta') {
+          b.signature = (b.signature || '') + (d.signature || '');
         }
       } else if (t === 'content_block_stop') {
         var bb = blocks[data.index];
@@ -340,6 +350,7 @@
 
     return pump().then(function () {
       var content = blocks.filter(Boolean).map(function (b) {
+        if (b._passthrough) { var c = {}; for (var k in b) if (k !== '_passthrough') c[k] = b[k]; return c; }
         if (b.type === 'text') return { type: 'text', text: b.text };
         return { type: 'tool_use', id: b.id, name: b.name, input: b.input || {} };
       }).filter(function (b) {
@@ -361,6 +372,11 @@
     var session = Store.ensureCurrentSession();
     var checkpoint = session.messages.length;   // for rollback on failure
     session.messages.push({ role: 'user', content: userText });
+    // Mark the turn in flight. rollback() only exists in this promise chain, so
+    // a reload here would otherwise leave the message stranded with no reply and
+    // no way to know it was never answered. Store.repairSession() undoes it on
+    // the next boot.
+    session.inFlightFrom = checkpoint;
     Store.setCurrentSession(session);
 
     var system = buildSystemPrompt(opts);
@@ -371,7 +387,14 @@
     // user message (which would 400 "roles must alternate" on the next turn).
     function rollback() {
       session.messages = session.messages.slice(0, checkpoint);
+      delete session.inFlightFrom;
       Store.setCurrentSession(session);
+    }
+    function settled() {
+      if (session.inFlightFrom != null) {
+        delete session.inFlightFrom;
+        Store.setCurrentSession(session);
+      }
     }
 
     function step() {
@@ -453,6 +476,7 @@
 
     return step().then(function () {
       if (!completed) rollback();   // incomplete (e.g. max tool rounds) — don't leave a dangling turn
+      else settled();
     }, function (err) {
       rollback();
       throw err;
