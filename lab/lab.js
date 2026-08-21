@@ -494,19 +494,32 @@
     kStatus('phonemising…');
     try {
       var toks = kG2P.phonemize(text, 'en').tokens;
-      var ids = [0];   // leading pad, as Kokoro expects
+      var body = [];
       var dropped = 0;
       toks.forEach(function (t) {
-        if (Object.prototype.hasOwnProperty.call(kVocab, t)) ids.push(kVocab[t]);
+        if (Object.prototype.hasOwnProperty.call(kVocab, t)) body.push(kVocab[t]);
         else dropped++;
       });
-      ids.push(0);
-      if (dropped) kStatus('note: ' + dropped + ' phoneme(s) unmapped');
 
-      // style is [1,256] taken at the row for this token count
+      // Context length is 512 and both pads must fit, so the body caps at 510.
+      // Without this an over-long phrase builds an oversized tensor and the WASM
+      // module aborts, which is unrecoverable for the session.
+      var truncated = 0;
+      if (body.length > 510) { truncated = body.length - 510; body = body.slice(0, 510); }
+
+      // The style row is indexed by the UNPADDED token count — voices[len(tokens)]
+      // in the reference usage, where tokens excludes both pads. Indexing with the
+      // padded length is off by two and yields a different speaker's vector.
       var all = kStyles[voice];
-      var row = Math.min(ids.length, Math.floor(all.length / 256) - 1);
+      var rows = Math.floor(all.length / 256);
+      var row = Math.min(body.length, rows - 1);
       var style = all.slice(row * 256, row * 256 + 256);
+
+      var ids = [0].concat(body, [0]);
+      var notes = [];
+      if (dropped) notes.push(dropped + ' phoneme(s) unmapped');
+      if (truncated) notes.push('truncated ' + truncated + ' token(s) over the 510 limit');
+      if (notes.length) kStatus('note: ' + notes.join('; '));
 
       var ort = window.ort;
       var feeds = {};
