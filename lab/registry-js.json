@@ -24,21 +24,24 @@
           "path": "dist/transformers.web.min.js",
           "url": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/transformers.web.min.js",
           "sha256": "0a96dcf4c48981b7d05f53827e6975ec239132606ad0d526bbc2db0fcdbc4ded",
-          "bytes": 431652
+          "bytes": 431652,
+          "sri": "sha384-zRrg7p9CA9PJ/XD6ZjVl1Bcr98z/KzFhoH4qsHmv7THvcl06cy/8RcR4UFziz6fV"
         },
         {
           "pkg": "@huggingface/transformers@4.2.0",
           "path": "dist/ort-wasm-simd-threaded.jsep.mjs",
           "url": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/ort-wasm-simd-threaded.jsep.mjs",
           "sha256": "522b3769929f5684c83a12cf1e06eedf073b65d161728b4f3757c75d62b14384",
-          "bytes": 46490
+          "bytes": 46490,
+          "sri": "sha384-j/3dM6yMb9HpG8P8XQ5Qm0jtYRtR7yLn3tIw1uupjn5L0cPOhpuJNK+WQwlEsCQT"
         },
         {
           "pkg": "onnxruntime-web@1.27.0",
           "path": "dist/ort-wasm-simd-threaded.jsep.wasm",
           "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort-wasm-simd-threaded.jsep.wasm",
           "sha256": "78feeeb3d08f6bcee94d938ed322f69073bb8076b5f9d34697a574ffba8deb48",
-          "bytes": 26827543
+          "bytes": 26827543,
+          "sri": "sha384-NRkAqXy32zY6LuDA4go2FTF1Cy85jvEfSu6DPTevOmSu441+7WhVZocyqdhT1kNB"
         }
       ]
     },
@@ -51,21 +54,24 @@
           "path": "dist/ort.wasm.min.mjs",
           "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort.wasm.min.mjs",
           "sha256": "9608e98a3fba9716f0cbd0bca0c94808b71dae2e9265ca3fe742ddc393a53ebc",
-          "bytes": 50069
+          "bytes": 50069,
+          "sri": "sha384-nU6qQ19c+thKRr4j1iyvgAcfW/Z6/lbo9agSyFIhBj8eZbO4MLvCySQzwCYJxY67"
         },
         {
           "pkg": "onnxruntime-web@1.27.0",
           "path": "dist/ort-wasm-simd-threaded.mjs",
           "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort-wasm-simd-threaded.mjs",
           "sha256": "0a1e718d99c41b22c21f2520ff4f9e883a6b5533856e398d21816ee8eb8185d3",
-          "bytes": 24180
+          "bytes": 24180,
+          "sri": "sha384-QwBuCPwkZ1hn48SSG/YP1rd25hKczDIg103x2AtlotnwUzVF919IZz1uRnLp9IOw"
         },
         {
           "pkg": "onnxruntime-web@1.27.0",
           "path": "dist/ort-wasm-simd-threaded.wasm",
           "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort-wasm-simd-threaded.wasm",
           "sha256": "d1ab1b94b16a65b29d710d0b587b29e7bed336827577623913479b8afe8113e6",
-          "bytes": 13479978
+          "bytes": 13479978,
+          "sri": "sha384-ZBv2MGQL3EUHCYbVm9I410F+QZX7GWFj9a556jISGqlE2TiRaeEWLu6jxd8ZYMGC"
         }
       ]
     },
@@ -78,14 +84,16 @@
           "path": "dist/vits-web.js",
           "url": "https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/vits-web.js",
           "sha256": "da2851c370ad6606f627c26db26490ebb0a455612866cd3b9a707778f65273cb",
-          "bytes": 13885
+          "bytes": 13885,
+          "sri": "sha384-XM5VLL1eJyVM7ci6zdUaYnVwAuDBRHA0ZL4jjB9IvRaxwfaRREeu8iB2XLNrO5mx"
         },
         {
           "pkg": "@diffusionstudio/vits-web@1.0.3",
           "path": "dist/piper-DeOu3H9E.js",
           "url": "https://cdn.jsdelivr.net/npm/@diffusionstudio/vits-web@1.0.3/dist/piper-DeOu3H9E.js",
           "sha256": "e2701cb8c73580ab395a67ad036ea1a4a9e50500c33c8b8499d159c3638451f3",
-          "bytes": 130569
+          "bytes": 130569,
+          "sri": "sha384-IAKEenfXR3k8BObbH1ht8DF4cm8YFIf/Cpe1SV0pIhaYsJqjtdkQLaVodLGFcrI8"
         }
       ]
     }
