@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<!-- Deliberately SEPARATE from the app's CSP. The app keeps default-src 'none'
+     with connect-src pinned to api.anthropic.com; nothing here relaxes that.
+     This page needs:
+       wasm-unsafe-eval  - WebAssembly.instantiate is refused under script-src 'self'
+       connect-src HF    - model weights, fetched only after explicit consent
+     No CDN is listed for scripts: every byte that EXECUTES is same-origin or is
+     hash-verified before it runs. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: data:; connect-src 'self' https://huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co; base-uri 'none'; form-action 'none'" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Speech Lab — Fitness Coach</title>
+<link rel="stylesheet" href="lab.css" />
+</head>
+<body>
+<header>
+  <h1>Speech Lab</h1>
+  <p class="sub">Test harness for on-device STT/TTS. Nothing here ships with the app.</p>
+</header>
+
+<section class="card" id="device-card">
+  <h2>This device</h2>
+  <div id="device" class="grid"></div>
+  <p class="hint">The whole question is phone behaviour, so run this on the phone you actually
+    train with — desktop numbers do not transfer.</p>
+</section>
+
+<section class="card">
+  <h2>1 · Web Speech recognition <span class="tag free">no download</span></h2>
+  <p class="hint">On iOS this is Apple's on-device Speech framework. On Android it is Google's
+    service and audio leaves the device.</p>
+  <div class="row">
+    <button id="sr-start" class="primary">Start listening</button>
+    <button id="sr-stop" disabled>Stop</button>
+    <label class="chk"><input type="checkbox" id="sr-continuous" checked /> continuous</label>
+  </div>
+  <div class="out">
+    <div><span class="lbl">partial</span><span id="sr-interim" class="interim"></span></div>
+    <div><span class="lbl">final</span><span id="sr-final"></span></div>
+  </div>
+  <div id="sr-stats" class="stats"></div>
+</section>
+
+<section class="card">
+  <h2>2 · Speech synthesis <span class="tag free">no download</span></h2>
+  <div class="row">
+    <select id="tts-voice"></select>
+    <button id="tts-speak" class="primary">Speak</button>
+  </div>
+  <input id="tts-text" type="text" value="Nice work. Three sets of ten at one thirty five — rest ninety seconds." />
+  <div id="tts-stats" class="stats"></div>
+</section>
+
+<section class="card">
+  <h2>3 · Voice activity detection <span class="tag free">no download</span></h2>
+  <p class="hint">The module from <code>js/vad.js</code>. Watch the noise floor adapt, then check
+    it still triggers on speech with music and plates in the background.</p>
+  <div class="row">
+    <button id="vad-start" class="primary">Start VAD</button>
+    <button id="vad-stop" disabled>Stop</button>
+  </div>
+  <div class="meter"><span id="vad-bar"></span><span id="vad-floor" class="floor"></span></div>
+  <div id="vad-stats" class="stats"></div>
+</section>
+
+<section class="card">
+  <h2>4 · Downloadable models</h2>
+  <p class="hint">
+    Every asset below is pinned to a SHA-256 in <code>registry.json</code>, taken from Hugging
+    Face's published <code>lfs.oid</code>. Nothing is fetched until you approve it, and every byte
+    is hash-verified in the browser <em>before</em> it is handed to the runtime — a mismatch aborts.
+  </p>
+  <div id="registry"></div>
+</section>
+
+<section class="card">
+  <h2>Results</h2>
+  <div class="row"><button id="copy-results">Copy as markdown</button></div>
+  <pre id="results">no runs yet</pre>
+</section>
+
+<script src="../js/vad.js"></script>
+<script src="lab.js"></script>
+</body>
+</html>
