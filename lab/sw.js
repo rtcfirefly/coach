@@ -18,6 +18,7 @@
  * reads what lab.js verified and put there. A miss is a normal network fetch.
  */
 const CACHE = 'speech-lab-v1';
+const SW_REV = 2;   // bump to force browsers to notice a changed worker
 
 self.addEventListener('install', (e) => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -25,6 +26,20 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  /* Navigations bypass the HTTP cache. The page versions its assets with ?v=N
+     but nothing versions index.html itself, so a returning browser can serve a
+     stale document that references old asset versions — which is exactly the
+     "hard refresh" problem, and Android Chrome has no hard-refresh gesture.
+     cache:'reload' forces revalidation of the document only; assets keep their
+     normal caching. Falls back to an ordinary fetch on any error, so a network
+     blip cannot leave the page unreachable. */
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req, { cache: 'reload' }).catch(() => fetch(req))
+    );
+    return;
+  }
 
   // Only model/runtime hosts are worth a cache lookup; page assets are handled
   // by the normal HTTP cache and intercepting them just adds latency.
