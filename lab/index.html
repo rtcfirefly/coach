@@ -45,6 +45,40 @@
 </section>
 
 <section class="card">
+  <h2>1b · Accuracy against a target phrase <span class="tag free">no download</span></h2>
+  <p class="hint">Read the phrase aloud; the harness scores word error rate against it. This is the
+    number that decides whether Web Speech is good enough — run it quiet, then again mid-set with
+    music and plates going.</p>
+  <div class="row">
+    <select id="wer-phrase"></select>
+    <button id="wer-start" class="primary">Read it</button>
+    <button id="wer-stop" disabled>Stop</button>
+  </div>
+  <div class="out">
+    <div><span class="lbl">target</span><span id="wer-target"></span></div>
+    <div><span class="lbl">heard</span><span id="wer-heard"></span></div>
+  </div>
+  <div id="wer-stats" class="stats"></div>
+</section>
+
+<section class="card">
+  <h2>1c · Gym-noise stress <span class="tag free">no download</span></h2>
+  <p class="hint">Plays shaped noise through the speaker while you talk, so you can test recognition
+    and barge-in without going to the gym. Echo cancellation is what should stop this bleeding into
+    the mic — if the VAD fires on the noise alone, AEC is not doing its job on this device.</p>
+  <div class="row">
+    <button id="noise-toggle">Start noise</button>
+    <label class="chk">level <input type="range" id="noise-level" min="0" max="100" value="35" /></label>
+    <select id="noise-kind">
+      <option value="pink">pink (crowd/HVAC)</option>
+      <option value="white">white (hiss)</option>
+      <option value="clank">clank (plates)</option>
+    </select>
+  </div>
+  <div id="noise-stats" class="stats"></div>
+</section>
+
+<section class="card">
   <h2>2 · Speech synthesis <span class="tag free">no download</span></h2>
   <div class="row">
     <select id="tts-voice"></select>

@@ -167,6 +167,132 @@
     });
   }
 
+  // ------------------------------------------------- 1b. WER against a target
+  // Phrases chosen to match what is actually said mid-workout: numbers, weights,
+  // exercise names and one-word answers — the cases generic WER benchmarks miss.
+  var PHRASES = [
+    'yes',
+    'no that was the last set',
+    'three sets of ten at one thirty five',
+    'romanian deadlift four sets of eight at twenty kilos',
+    'I did a twenty minute run and my left shoulder is tweaky',
+    'start a ninety second rest timer',
+    'bench press eight reps then two more at one eighty five'
+  ];
+  function norm(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  }
+  // Standard Levenshtein over word tokens: WER = (S+D+I)/N.
+  function wer(refStr, hypStr) {
+    var r = norm(refStr), h = norm(hypStr);
+    if (!r.length) return { wer: null, n: 0 };
+    var prev = new Array(h.length + 1), cur = new Array(h.length + 1), i, j;
+    for (j = 0; j <= h.length; j++) prev[j] = j;
+    for (i = 1; i <= r.length; i++) {
+      cur[0] = i;
+      for (j = 1; j <= h.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (r[i - 1] === h[j - 1] ? 0 : 1));
+      }
+      for (j = 0; j <= h.length; j++) prev[j] = cur[j];
+    }
+    return { wer: prev[h.length] / r.length, n: r.length, edits: prev[h.length] };
+  }
+
+  var werRec = null, werT0 = 0, werFirst = 0;
+  function startWer() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('No SpeechRecognition here.'); return; }
+    var target = $('wer-phrase').value;
+    $('wer-target').textContent = target;
+    $('wer-heard').textContent = '';
+    $('wer-stats').textContent = 'listening…';
+    werRec = new SR();
+    werRec.lang = 'en-US'; werRec.interimResults = true; werRec.continuous = true; werRec.maxAlternatives = 1;
+    werT0 = performance.now(); werFirst = 0;
+    var heard = '', emitted = 0;
+    werRec.onresult = function (e) {
+      var interim = '', fresh = '';
+      for (var i = 0; i < e.results.length; i++) {
+        var r = e.results[i];
+        if (r.isFinal) { if (i >= emitted) { fresh += r[0].transcript; emitted = i + 1; } }
+        else interim += r[0].transcript;
+      }
+      if (!werFirst && (interim || fresh)) werFirst = performance.now() - werT0;
+      if (fresh) heard += (heard ? ' ' : '') + fresh.trim();
+      $('wer-heard').textContent = heard + (interim ? ' [' + interim + ']' : '');
+    };
+    werRec.onend = function () {
+      $('wer-start').disabled = false; $('wer-stop').disabled = true;
+      var res = wer(target, heard);
+      var pct = res.wer == null ? '?' : (res.wer * 100).toFixed(0) + '%';
+      var noisy = noiseNode ? ' · WITH NOISE (' + $('noise-kind').value + ' @ ' + $('noise-level').value + ')' : ' · quiet';
+      $('wer-stats').textContent = 'WER ' + pct + ' (' + res.edits + ' edits / ' + res.n + ' words) · first result ' +
+        Math.round(werFirst) + ' ms' + noisy;
+      record({ test: 'WER' + noisy, detail: pct + ' — heard: ' + (heard || '(nothing)'), ms: Math.round(werFirst) });
+    };
+    werRec.onerror = function (e) { $('wer-stats').textContent = 'error: ' + (e && e.error); };
+    werRec.start();
+    $('wer-start').disabled = true; $('wer-stop').disabled = false;
+  }
+
+  // ------------------------------------------------- 1c. gym-noise generator
+  var noiseCtx = null, noiseNode = null, noiseGain = null, clankTimer = null;
+  function makeNoiseBuffer(ctx, kind) {
+    var len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    if (kind === 'white') {
+      for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    } else {
+      // Voss-McCartney-ish pink: closer to gym HVAC and crowd rumble than white.
+      var b0 = 0, b1 = 0, b2 = 0;
+      for (var j = 0; j < len; j++) {
+        var w = Math.random() * 2 - 1;
+        b0 = 0.99765 * b0 + w * 0.0990460;
+        b1 = 0.96300 * b1 + w * 0.2965164;
+        b2 = 0.57000 * b2 + w * 1.0526913;
+        d[j] = (b0 + b1 + b2 + w * 0.1848) * 0.25;
+      }
+    }
+    return buf;
+  }
+  function startNoise() {
+    noiseCtx = noiseCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (noiseCtx.state === 'suspended') noiseCtx.resume();
+    var kind = $('noise-kind').value;
+    noiseGain = noiseCtx.createGain();
+    noiseGain.gain.value = parseInt($('noise-level').value, 10) / 100 * 0.4;
+    noiseGain.connect(noiseCtx.destination);
+    if (kind === 'clank') {
+      // Impulsive metallic hits — the hard case, because they look like speech onsets to a VAD.
+      clankTimer = setInterval(function () {
+        var o = noiseCtx.createOscillator(), g = noiseCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = 900 + Math.random() * 2200;
+        var t = noiseCtx.currentTime;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.6, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+        o.connect(g); g.connect(noiseGain);
+        o.start(t); o.stop(t + 0.4);
+      }, 900 + Math.random() * 1600);
+      noiseNode = { stop: function () {}, disconnect: function () {} };
+    } else {
+      noiseNode = noiseCtx.createBufferSource();
+      noiseNode.buffer = makeNoiseBuffer(noiseCtx, kind);
+      noiseNode.loop = true;
+      noiseNode.connect(noiseGain);
+      noiseNode.start();
+    }
+    $('noise-toggle').textContent = 'Stop noise';
+    $('noise-stats').textContent = 'playing ' + kind + ' — now run 1b or the VAD and see what changes';
+  }
+  function stopNoise() {
+    if (clankTimer) { clearInterval(clankTimer); clankTimer = null; }
+    if (noiseNode) { try { noiseNode.stop(); } catch (e) {} try { noiseNode.disconnect(); } catch (e) {} noiseNode = null; }
+    if (noiseGain) { try { noiseGain.disconnect(); } catch (e) {} noiseGain = null; }
+    $('noise-toggle').textContent = 'Start noise';
+    $('noise-stats').textContent = 'stopped';
+  }
+
   // ------------------------------------------------- 4. pinned, consented loader
   function hex(buf) {
     var b = new Uint8Array(buf), s = '';
@@ -275,6 +401,18 @@
   fillVoices();
   if (window.speechSynthesis) speechSynthesis.onvoiceschanged = fillVoices;
   setTimeout(fillVoices, 1000);
+
+  PHRASES.forEach(function (p) {
+    var o = document.createElement('option'); o.value = p; o.textContent = p; $('wer-phrase').appendChild(o);
+  });
+  $('wer-target').textContent = PHRASES[0];
+  $('wer-phrase').addEventListener('change', function () { $('wer-target').textContent = this.value; });
+  $('wer-start').addEventListener('click', startWer);
+  $('wer-stop').addEventListener('click', function () { if (werRec) werRec.stop(); });
+  $('noise-toggle').addEventListener('click', function () { noiseGain ? stopNoise() : startNoise(); });
+  $('noise-level').addEventListener('input', function () {
+    if (noiseGain) noiseGain.gain.value = parseInt(this.value, 10) / 100 * 0.4;
+  });
 
   $('sr-start').addEventListener('click', startSR);
   $('sr-stop').addEventListener('click', function () { if (rec) rec.stop(); });
